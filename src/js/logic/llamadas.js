@@ -1,3 +1,5 @@
+import { syncLlamadasFromSupabase } from '../services/supabase.js';
+
 export function initLlamadasView() {
     const tabla = document.getElementById('lista-llamadas');
     const modal = document.getElementById('modalNuevaLlamada');
@@ -5,14 +7,13 @@ export function initLlamadasView() {
     const btnN8n = document.getElementById('btn-n8n-flow');
     let indexEdicion = null;
 
-    let candidatos = JSON.parse(localStorage.getItem('candidatos_riwicalls')) || [];
+    let candidatos = JSON.parse(localStorage.getItem('llamadas_riwicalls')) || [];
 
     const renderizarFilas = (datos) => {
         if (!tabla) return;
-        tabla.innerHTML = candidatos.map((c, index) => {
+        tabla.innerHTML = datos.map((c, index) => {
             const nombreReal = c.nombre || c.Nombre || "Sin nombre";
-            const yaSeLlamo = c.estado !== 'Inscrito';
-            const fechaMostrar = yaSeLlamo ? (c.fechaLlamada || '') : '';
+            const fechaMostrar = c.fechaLlamada ? new Date(c.fechaLlamada).toLocaleString() : '';
 
             return `
                 <tr>
@@ -79,12 +80,26 @@ export function initLlamadasView() {
                 candidatos[indexEdicion].fechaLlamada = new Date().toLocaleString();
             }
             candidatos[indexEdicion].motivo = motivo;
-            localStorage.setItem('candidatos_riwicalls', JSON.stringify(candidatos));
+            localStorage.setItem('llamadas_riwicalls', JSON.stringify(candidatos));
             renderizarFilas(candidatos);
             modal.style.display = 'none'; indexEdicion = null;
             document.getElementById('nuevoNombre').value = ''; document.getElementById('nuevoTel').value = ''; document.getElementById('detalleMotivo').value = ''; 
         } else { alert("Llena nombre y teléfono"); }
     });
 
-    renderizarFilas(candidatos);
+    const cargarLlamadas = async () => {
+        try {
+            const llamadasSupabase = await syncLlamadasFromSupabase();
+            if (Array.isArray(llamadasSupabase) && llamadasSupabase.length) {
+                candidatos = llamadasSupabase;
+                localStorage.setItem('llamadas_riwicalls', JSON.stringify(candidatos));
+            }
+        } catch (error) {
+            console.warn('No se pudieron cargar llamadas desde Supabase:', error);
+        }
+
+        renderizarFilas(candidatos);
+    };
+
+    cargarLlamadas();
 }

@@ -32,28 +32,149 @@ export function isSupabaseProjectUrl(url) {
 }
 
 export async function syncCandidatosFromSupabase() {
+    const [
+        candidatos,
+        generos,
+        municipios,
+        nivelesEducativos,
+        conocimientosProgramacion,
+        horarios,
+        estadosGestion
+    ] = await Promise.all([
+        fetchSupabaseTable('candidatos'),
+        fetchSupabaseTable('generos'),
+        fetchSupabaseTable('municipios'),
+        fetchSupabaseTable('niveles_educativos'),
+        fetchSupabaseTable('conocimientos_programacion'),
+        fetchSupabaseTable('horarios'),
+        fetchSupabaseTable('estados_gestion')
+    ]);
+
+    const porId = (list) => new Map((list || []).map(item => [String(item.id), item]));
+    const generosMap = porId(generos);
+    const municipiosMap = porId(municipios);
+    const nivelesMap = porId(nivelesEducativos);
+    const conocimientosMap = porId(conocimientosProgramacion);
+    const horariosMap = porId(horarios);
+    const estadosMap = porId(estadosGestion);
+
+    return (candidatos || []).map((candidato) => {
+        const genero = generosMap.get(String(candidato.genero_id));
+        const municipio = municipiosMap.get(String(candidato.municipio_id));
+        const nivelEducativo = nivelesMap.get(String(candidato.nivel_educativo_id));
+        const nivelProg = conocimientosMap.get(String(candidato.conocimiento_programacion_id));
+        const horario = horariosMap.get(String(candidato.horario_id));
+        const estadoGestion = estadosMap.get(String(candidato.estado_gestion_id));
+        const fechaNacimiento = candidato.fecha_nacimiento ? new Date(candidato.fecha_nacimiento) : null;
+        const edad = fechaNacimiento && !Number.isNaN(fechaNacimiento.getTime())
+            ? Math.max(0, Math.floor((Date.now() - fechaNacimiento.getTime()) / (1000 * 60 * 60 * 24 * 365.25)))
+            : '';
+
+        return {
+            id: candidato.id,
+            nombre: [candidato.nombre, candidato.apellido].filter(Boolean).join(' ').trim() || 'Sin nombre',
+            cedula: candidato.numero_documento ? String(candidato.numero_documento) : '',
+            edad,
+            genero: genero?.descripcion || 'Otro',
+            tel: candidato.telefono || '',
+            municipio: municipio?.nombre || '',
+            educacion: nivelEducativo?.descripcion || '',
+            programacion: nivelProg?.descripcion || '',
+            jornada: horario?.descripcion || '',
+            estado: estadoGestion?.descripcion || candidato.fase_actual || 'Inscrito',
+            fase_actual: candidato.fase_actual || '',
+            intentos_llamada: candidato.intentos_llamada || 0
+        };
+    });
+}
+
+export async function syncLlamadasFromSupabase() {
+    const [llamadas, candidatos, resultados, motivos] = await Promise.all([
+        fetchSupabaseTable('llamadas'),
+        fetchSupabaseTable('candidatos'),
+        fetchSupabaseTable('resultados_llamada'),
+        fetchSupabaseTable('motivos_llamada')
+    ]);
+
+    const candidatosMap = new Map((candidatos || []).map(c => [String(c.id), c]));
+    const resultadosMap = new Map((resultados || []).map(r => [String(r.id), r]));
+    const motivosMap = new Map((motivos || []).map(m => [String(m.id), m]));
+
+    return (llamadas || []).map((llamada) => {
+        const candidato = candidatosMap.get(String(llamada.candidato_id));
+        const resultado = resultadosMap.get(String(llamada.resultado_id));
+        const motivo = motivosMap.get(String(candidato?.motivo_llamada_id));
+        const nombre = [candidato?.nombre, candidato?.apellido].filter(Boolean).join(' ').trim() || 'Sin nombre';
+        return {
+            id: llamada.id,
+            nombre,
+            tel: candidato?.telefono || '',
+            estado: resultado?.descripcion || 'Pendiente',
+            fechaLlamada: llamada.fecha_hora_llamada || llamada.created_at || '',
+            motivo: motivo?.descripcion || llamada.resumen || ''
+        };
+    });
+}
+
+export async function syncEventosFromSupabase() {
+    const [eventos, horarios, candidatos] = await Promise.all([
+        fetchSupabaseTable('eventos'),
+        fetchSupabaseTable('horarios'),
+        fetchSupabaseTable('candidatos')
+    ]);
+
+    const horariosMap = new Map((horarios || []).map(h => [String(h.id), h]));
+    const candidatosPorEvento = new Map();
+
+    (candidatos || []).forEach((candidato) => {
+        if (candidato.evento_asignado_id && !candidatosPorEvento.has(String(candidato.evento_asignado_id))) {
+            candidatosPorEvento.set(
+                String(candidato.evento_asignado_id),
+                [candidato.nombre, candidato.apellido].filter(Boolean).join(' ').trim()
+            );
+        }
+    });
+
+    return (eventos || []).map((evento) => {
+        const horario = horariosMap.get(String(evento.horario_id));
+        return {
+            id: evento.id,
+            titulo: evento.tipo_reunion || 'Evento',
+            tipo: horario?.descripcion || 'Programación',
+            estado: evento.estado || 'Programado',
+            fecha: evento.fecha_hora || '',
+            candidato: candidatosPorEvento.get(String(evento.id)) || 'Ninguno',
+            descripcion: evento.descripcion || ''
+        };
+    });
+}
+
+export async function fetchSupabaseTable(table) {
     const edgeUrl = getNetlifyEdgeUrl();
     const supabaseUrl = getSupabaseUrl();
     const endpoint = new URL(edgeUrl, window.location.origin);
 
     if (supabaseUrl) endpoint.searchParams.set('supabaseUrl', supabaseUrl);
-    endpoint.searchParams.set('table', 'candidatos');
+    endpoint.searchParams.set('table', table);
 
     try {
         const response = await fetch(endpoint.toString());
         if (!response.ok) {
-            let message = 'No fue posible sincronizar desde Supabase';
-            try {
-                const errorPayload = await response.json();
-                message = errorPayload?.error || errorPayload?.detail || message;
-            } catch (error) {
-                const fallbackText = await response.text();
-                message = fallbackText || message;
+            let message = `No fue posible sincronizar la tabla ${table}`;
+            const rawBody = await response.text();
+            if (rawBody) {
+                try {
+                    const errorPayload = JSON.parse(rawBody);
+                    message = errorPayload?.error || errorPayload?.detail || message;
+                } catch (error) {
+                    message = rawBody;
+                }
             }
             throw new Error(message);
         }
 
-        return response.json();
+        const data = await response.json();
+        return Array.isArray(data) ? data : [];
     } catch (error) {
         const detail = error?.message || String(error);
         throw new Error(detail || 'No se pudo conectar con la Edge Function de Netlify');
