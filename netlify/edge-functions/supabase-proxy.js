@@ -1,7 +1,7 @@
 // Opcional: pega aquí tu URL de proyecto Supabase para dejarla fija en despliegue.
-const SUPABASE_URL = '';
+const SUPABASE_URL = 'https://tklnqbdxdcwlgcamnima.supabase.co';
 // Opcional: pega aquí tu anon key si tu tabla requiere autenticación.
-const SUPABASE_ANON_KEY = '';
+const SUPABASE_ANON_KEY = 'sb_publishable_VAbrww5NDRRxKqdWuP_4UQ_4FCYIdHl';
 
 const json = (payload, status = 200) => new Response(JSON.stringify(payload), {
     status,
