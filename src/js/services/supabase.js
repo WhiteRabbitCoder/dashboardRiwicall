@@ -111,7 +111,7 @@ export async function syncLlamadasFromSupabase() {
             tel: candidato?.telefono || '',
             estado: resultado?.descripcion || 'Pendiente',
             fechaLlamada: llamada.fecha_hora_llamada || llamada.created_at || '',
-            motivo: motivo?.descripcion || llamada.resumen || ''
+            motivo: llamada.resumen || motivo?.descripcion || ''
         };
     });
 }
@@ -127,11 +127,11 @@ export async function syncEventosFromSupabase() {
     const candidatosPorEvento = new Map();
 
     (candidatos || []).forEach((candidato) => {
-        if (candidato.evento_asignado_id && !candidatosPorEvento.has(String(candidato.evento_asignado_id))) {
-            candidatosPorEvento.set(
-                String(candidato.evento_asignado_id),
-                [candidato.nombre, candidato.apellido].filter(Boolean).join(' ').trim()
-            );
+        if (candidato.evento_asignado_id) {
+            const eventoId = String(candidato.evento_asignado_id);
+            const nombre = [candidato.nombre, candidato.apellido].filter(Boolean).join(' ').trim();
+            const actuales = candidatosPorEvento.get(eventoId) || [];
+            candidatosPorEvento.set(eventoId, [...actuales, nombre].filter(Boolean));
         }
     });
 
@@ -143,7 +143,7 @@ export async function syncEventosFromSupabase() {
             tipo: horario?.descripcion || 'Programación',
             estado: evento.estado || 'Programado',
             fecha: evento.fecha_hora || '',
-            candidato: candidatosPorEvento.get(String(evento.id)) || 'Ninguno',
+            candidato: (candidatosPorEvento.get(String(evento.id)) || []).join(', ') || 'Ninguno',
             descripcion: evento.descripcion || ''
         };
     });
@@ -160,23 +160,12 @@ export async function fetchSupabaseTable(table) {
     try {
         const response = await fetch(endpoint.toString());
         if (!response.ok) {
-            let message = `No fue posible sincronizar la tabla ${table}`;
-            const rawBody = await response.text();
-            if (rawBody) {
-                try {
-                    const errorPayload = JSON.parse(rawBody);
-                    message = errorPayload?.error || errorPayload?.detail || message;
-                } catch (error) {
-                    message = rawBody;
-                }
-            }
-            throw new Error(message);
+            throw new Error(`No fue posible sincronizar la tabla ${table} (${response.status})`);
         }
 
         const data = await response.json();
         return Array.isArray(data) ? data : [];
     } catch (error) {
-        const detail = error?.message || String(error);
-        throw new Error(detail || 'No se pudo conectar con la Edge Function de Netlify');
+        throw new Error(error?.message || String(error));
     }
 }

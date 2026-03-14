@@ -8,6 +8,39 @@ const json = (payload, status = 200) => new Response(JSON.stringify(payload), {
     headers: { 'content-type': 'application/json; charset=utf-8' }
 });
 
+const ALLOWED_TABLES = new Set([
+    'candidato_ideal',
+    'candidatos',
+    'cola_llamadas',
+    'conocimientos_programacion',
+    'departamentos',
+    'estados_gestion',
+    'estratos',
+    'eventos',
+    'generos',
+    'historial_fases',
+    'horarios',
+    'llamadas',
+    'medios_comunicacion',
+    'motivos_llamada',
+    'municipios',
+    'niveles_educativos',
+    'ocupaciones',
+    'resultados_llamada',
+    'sedes',
+    'tipos_convenio',
+    'tipos_documento'
+]);
+
+const isValidSupabaseUrl = (value) => {
+    try {
+        const parsed = new URL(value);
+        return parsed.protocol === 'https:' && parsed.hostname.endsWith('.supabase.co');
+    } catch (error) {
+        return false;
+    }
+};
+
 export default async (request) => {
     const requestUrl = new URL(request.url);
     const table = requestUrl.searchParams.get('table') || 'candidatos';
@@ -16,10 +49,18 @@ export default async (request) => {
     if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(table)) {
         return json({ error: 'Nombre de tabla inválido.' }, 400);
     }
+    if (!ALLOWED_TABLES.has(table)) {
+        return json({ error: 'La tabla solicitada no está permitida.' }, 403);
+    }
 
     if (!supabaseUrl) {
         return json({
             error: 'Falta la URL de Supabase. Pégala en Configuración o en netlify/edge-functions/supabase-proxy.js'
+        }, 400);
+    }
+    if (!isValidSupabaseUrl(supabaseUrl)) {
+        return json({
+            error: 'La URL de Supabase no es válida. Debe ser https://*.supabase.co'
         }, 400);
     }
 
