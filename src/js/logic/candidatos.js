@@ -1,3 +1,5 @@
+import { getNetlifyEdgeUrl, getSupabaseUrl, saveSupabaseUrl, syncCandidatosFromSupabase } from '../services/supabase.js';
+
 export function initCandidatosView() {
     // Copiado y adaptado de la lógica original en candidatosView.js
     const inputBusqueda = document.getElementById('searchInput');
@@ -196,14 +198,21 @@ export function initCandidatosView() {
     document.getElementById('btnCerrarDB').onclick = cerrarDB;
     document.getElementById('btnCancelarDB').onclick = cerrarDB;
 
+    const dbUrlInput = document.getElementById('dbUrl');
+    if (dbUrlInput) {
+        const savedSupabaseUrl = getSupabaseUrl();
+        dbUrlInput.value = savedSupabaseUrl || getNetlifyEdgeUrl();
+    }
+
     btnSincronizar.onclick = async () => {
-        const url = document.getElementById('dbUrl').value;
-        if (!url) return alert("URL requerida");
+        const inputValue = dbUrlInput?.value?.trim() || '';
+        if (!inputValue) return alert("URL requerida");
         btnSincronizar.disabled = true;
         try {
-            const res = await fetch(url);
-            const data = await res.json();
+            if (inputValue.includes('supabase.co')) saveSupabaseUrl(inputValue);
+            const data = await syncCandidatosFromSupabase();
             if (Array.isArray(data)) { listaOriginal = data; guardarEnLocal(); filtrar(); alert("Sincronizado"); cerrarDB(); }
+            else alert("La respuesta no tiene formato válido.");
         } catch (e) { alert("Error de conexión"); }
         finally { btnSincronizar.disabled = false; }
     };
