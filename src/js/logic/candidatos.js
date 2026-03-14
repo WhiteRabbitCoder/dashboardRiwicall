@@ -1,4 +1,4 @@
-import { getNetlifyEdgeUrl, getSupabaseUrl, saveSupabaseUrl, syncCandidatosFromSupabase } from '../services/supabase.js';
+import { getNetlifyEdgeUrl, getSupabaseUrl, isSupabaseProjectUrl, saveSupabaseUrl, syncCandidatosFromSupabase } from '../services/supabase.js';
 
 export function initCandidatosView() {
     // Copiado y adaptado de la lógica original en candidatosView.js
@@ -209,11 +209,20 @@ export function initCandidatosView() {
         if (!inputValue) return alert("URL requerida");
         btnSincronizar.disabled = true;
         try {
-            if (inputValue.includes('supabase.co')) saveSupabaseUrl(inputValue);
+            if (isSupabaseProjectUrl(inputValue)) {
+                saveSupabaseUrl(inputValue);
+            }
             const data = await syncCandidatosFromSupabase();
-            if (Array.isArray(data)) { listaOriginal = data; guardarEnLocal(); filtrar(); alert("Sincronizado"); cerrarDB(); }
-            else alert("La respuesta no tiene formato válido.");
-        } catch (e) { alert("Error de conexión"); }
+            if (Array.isArray(data)) {
+                listaOriginal = data;
+                guardarEnLocal();
+                filtrar();
+                alert("Sincronizado");
+                cerrarDB();
+            } else {
+                alert("La respuesta no tiene formato válido.");
+            }
+        } catch (e) { alert(e?.message || "Error de conexión"); }
         finally { btnSincronizar.disabled = false; }
     };
 

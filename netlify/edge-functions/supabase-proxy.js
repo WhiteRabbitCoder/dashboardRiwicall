@@ -1,4 +1,6 @@
+// Opcional: pega aquí tu URL de proyecto Supabase para dejarla fija en despliegue.
 const SUPABASE_URL = '';
+// Opcional: pega aquí tu anon key si tu tabla requiere autenticación.
 const SUPABASE_ANON_KEY = '';
 
 const json = (payload, status = 200) => new Response(JSON.stringify(payload), {
@@ -11,7 +13,7 @@ export default async (request) => {
     const table = requestUrl.searchParams.get('table') || 'candidatos';
     const supabaseUrl = requestUrl.searchParams.get('supabaseUrl') || SUPABASE_URL;
 
-    if (!/^[a-zA-Z0-9_]+$/.test(table)) {
+    if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(table)) {
         return json({ error: 'Nombre de tabla inválido.' }, 400);
     }
 

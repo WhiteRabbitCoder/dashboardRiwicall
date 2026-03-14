@@ -1,4 +1,4 @@
-import { getNetlifyEdgeUrl, getSupabaseUrl, saveNetlifyEdgeUrl, saveSupabaseUrl } from '../services/supabase.js';
+import { getNetlifyEdgeUrl, getSupabaseUrl, isSupabaseProjectUrl, saveNetlifyEdgeUrl, saveSupabaseUrl } from '../services/supabase.js';
 
 export const configuracionView = {
     title: 'Configuración del Sistema',
@@ -130,6 +130,10 @@ export const configuracionView = {
 
         if (!supabaseUrl) {
             alert('Pega la URL de Supabase antes de guardar.');
+            return;
+        }
+        if (!isSupabaseProjectUrl(supabaseUrl)) {
+            alert('La URL debe ser una URL válida de proyecto Supabase (https://*.supabase.co).');
             return;
         }
 

@@ -22,6 +22,15 @@ export function saveNetlifyEdgeUrl(url) {
     localStorage.setItem(STORAGE_KEYS.netlifyEdgeUrl, finalUrl);
 }
 
+export function isSupabaseProjectUrl(url) {
+    try {
+        const parsed = new URL(url);
+        return parsed.protocol === 'https:' && parsed.hostname.endsWith('.supabase.co');
+    } catch (error) {
+        return false;
+    }
+}
+
 export async function syncCandidatosFromSupabase() {
     const edgeUrl = getNetlifyEdgeUrl();
     const supabaseUrl = getSupabaseUrl();
@@ -30,11 +39,23 @@ export async function syncCandidatosFromSupabase() {
     if (supabaseUrl) endpoint.searchParams.set('supabaseUrl', supabaseUrl);
     endpoint.searchParams.set('table', 'candidatos');
 
-    const response = await fetch(endpoint.toString());
-    if (!response.ok) {
-        const message = await response.text();
-        throw new Error(message || 'No fue posible sincronizar desde Supabase');
-    }
+    try {
+        const response = await fetch(endpoint.toString());
+        if (!response.ok) {
+            let message = 'No fue posible sincronizar desde Supabase';
+            try {
+                const errorPayload = await response.json();
+                message = errorPayload?.error || errorPayload?.detail || message;
+            } catch (error) {
+                const fallbackText = await response.text();
+                message = fallbackText || message;
+            }
+            throw new Error(message);
+        }
 
-    return response.json();
+        return response.json();
+    } catch (error) {
+        const detail = error?.message || String(error);
+        throw new Error(detail || 'No se pudo conectar con la Edge Function de Netlify');
+    }
 }
