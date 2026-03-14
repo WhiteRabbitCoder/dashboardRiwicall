@@ -20,42 +20,42 @@ export const Sidebar = {
                     <span class="font-medium text-sm">Dashboard</span>
                 </a>
                 
-                <a href="#/candidatos" class="flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 text-white transition-all group">
+                <a href="#/candidates" class="flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 text-white transition-all group">
                     <i data-lucide="users" class="w-5 h-5 text-riwi-mint"></i>
                     <span class="font-medium text-sm">Candidatos</span>
                 </a>
 
-                <a href="#/seguimiento" class="flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 text-white transition-all group">
+                <a href="#/tracking" class="flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 text-white transition-all group">
                     <i data-lucide="trello" class="w-5 h-5 text-riwi-mint"></i>
                     <span class="font-medium text-sm">Seguimiento</span>
                 </a>
 
                 <p class="text-[10px] text-white/30 font-bold uppercase tracking-widest px-3 mt-4 mb-1">Operaciones</p>
 
-                <a href="#/llamadas" class="flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 text-white transition-all group">
+                <a href="#/calls" class="flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 text-white transition-all group">
                     <i data-lucide="phone-incoming" class="w-5 h-5 text-riwi-mint"></i>
                     <span class="font-medium text-sm">Llamadas</span>
                 </a>
 
-                <a href="#/eventos" class="flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 text-white transition-all group">
+                <a href="#/events" class="flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 text-white transition-all group">
                     <i data-lucide="calendar" class="w-5 h-5 text-riwi-mint"></i>
                     <span class="font-medium text-sm">Eventos</span>
                 </a>
 
                 <p class="text-[10px] text-white/30 font-bold uppercase tracking-widest px-3 mt-4 mb-1">Reportes</p>
 
-                <a href="#/analitica" class="flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 text-white transition-all group">
+                <a href="#/analytics" class="flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 text-white transition-all group">
                     <i data-lucide="bar-chart-3" class="w-5 h-5 text-riwi-mint"></i>
                     <span class="font-medium text-sm">Analítica</span>
                 </a>
 
-                <a href="#/reportes" class="flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 text-white transition-all group">
+                <a href="#/reports" class="flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 text-white transition-all group">
                     <i data-lucide="file-text" class="w-5 h-5 text-riwi-mint"></i>
                     <span class="font-medium text-sm">Reportes</span>
                 </a>
 
                 <div class="mt-4 pt-4 border-t border-white/10">
-                    <a href="#/configuracion" class="flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 text-white transition-all group">
+                    <a href="#/settings" class="flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 text-white transition-all group">
                         <i data-lucide="settings" class="w-5 h-5 text-riwi-mint"></i>
                         <span class="font-medium text-sm">Configuración</span>
                     </a>

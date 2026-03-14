@@ -1,6 +1,9 @@
 import { syncLlamadasFromSupabase } from '../services/supabase.js';
 
-export function initLlamadasView() {
+const WEBHOOK_STORAGE_KEY = 'call_flow_webhook_url';
+const LEGACY_WEBHOOK_STORAGE_KEY = 'webhook_n8n_url';
+
+export function initCallsView() {
     const tabla = document.getElementById('lista-llamadas');
     const modal = document.getElementById('modalNuevaLlamada');
     const btnAbrir = document.getElementById('btn-nueva-llamada');
@@ -52,7 +55,7 @@ export function initLlamadasView() {
 
     if (btnN8n) {
         btnN8n.addEventListener('click', async () => {
-            const urlConfigurada = localStorage.getItem('webhook_n8n_url');
+            const urlConfigurada = localStorage.getItem(WEBHOOK_STORAGE_KEY) || localStorage.getItem(LEGACY_WEBHOOK_STORAGE_KEY);
             if (!urlConfigurada) { alert('⚠️ Primero debes configurar la URL del Webhook en la sección de Configuración.'); return; }
             btnN8n.innerHTML = 'Enviando...'; btnN8n.disabled = true;
             try {
@@ -60,9 +63,9 @@ export function initLlamadasView() {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ proyecto: "RiwiCalls", usuario: "Andrea Lizcano", datos: llamadas })
                 });
-                if (respuesta.ok) alert(' Flujo de n8n iniciado con éxito.');
-            } catch (error) { alert(' Error de conexión con n8n. Revisa la URL en Configuración.'); }
-            finally { btnN8n.innerHTML = '<i data-lucide="share-2" class="w-4 h-4"></i> Iniciar flujo con n8n'; btnN8n.disabled = false; if (window.lucide) lucide.createIcons(); }
+                if (respuesta.ok) alert(' Flujo de llamadas iniciado con éxito.');
+            } catch (error) { alert(' Error de conexión con el webhook. Revisa la URL en Configuración.'); }
+            finally { btnN8n.innerHTML = '<i data-lucide="share-2" class="w-4 h-4"></i> Iniciar flujo de llamadas'; btnN8n.disabled = false; if (window.lucide) lucide.createIcons(); }
         });
     }
 

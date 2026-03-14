@@ -1,35 +1,4 @@
-const STORAGE_KEYS = {
-    supabaseUrl: 'supabase_url',
-    netlifyEdgeUrl: 'netlify_edge_supabase_url'
-};
-
-const DEFAULT_EDGE_URL = '/.netlify/edge-functions/supabase-proxy';
-
-export function getSupabaseUrl() {
-    return localStorage.getItem(STORAGE_KEYS.supabaseUrl) || '';
-}
-
-export function saveSupabaseUrl(url) {
-    localStorage.setItem(STORAGE_KEYS.supabaseUrl, url.trim());
-}
-
-export function getNetlifyEdgeUrl() {
-    return localStorage.getItem(STORAGE_KEYS.netlifyEdgeUrl) || DEFAULT_EDGE_URL;
-}
-
-export function saveNetlifyEdgeUrl(url) {
-    const finalUrl = url.trim() || DEFAULT_EDGE_URL;
-    localStorage.setItem(STORAGE_KEYS.netlifyEdgeUrl, finalUrl);
-}
-
-export function isSupabaseProjectUrl(url) {
-    try {
-        const parsed = new URL(url);
-        return parsed.protocol === 'https:' && parsed.hostname.endsWith('.supabase.co');
-    } catch (error) {
-        return false;
-    }
-}
+const EDGE_PROXY_URL = '/.netlify/edge-functions/supabase-proxy';
 
 export async function syncCandidatosFromSupabase() {
     const [
@@ -150,11 +119,7 @@ export async function syncEventosFromSupabase() {
 }
 
 export async function fetchSupabaseTable(table) {
-    const edgeUrl = getNetlifyEdgeUrl();
-    const supabaseUrl = getSupabaseUrl();
-    const endpoint = new URL(edgeUrl, window.location.origin);
-
-    if (supabaseUrl) endpoint.searchParams.set('supabaseUrl', supabaseUrl);
+    const endpoint = new URL(EDGE_PROXY_URL, window.location.origin);
     endpoint.searchParams.set('table', table);
 
     try {

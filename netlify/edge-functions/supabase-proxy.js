@@ -1,7 +1,5 @@
-// Opcional: pega aquí tu URL de proyecto Supabase para dejarla fija en despliegue.
-const SUPABASE_URL = 'https://tklnqbdxdcwlgcamnima.supabase.co';
-// Opcional: pega aquí tu anon key si tu tabla requiere autenticación.
-const SUPABASE_ANON_KEY = 'sb_publishable_VAbrww5NDRRxKqdWuP_4UQ_4FCYIdHl';
+const SUPABASE_URL = Netlify.env.get('SUPABASE_URL');
+const SUPABASE_SERVICE_ROLE = Netlify.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 const json = (payload, status = 200) => new Response(JSON.stringify(payload), {
     status,
@@ -44,7 +42,6 @@ const isValidSupabaseUrl = (value) => {
 export default async (request) => {
     const requestUrl = new URL(request.url);
     const table = requestUrl.searchParams.get('table') || 'candidatos';
-    const supabaseUrl = requestUrl.searchParams.get('supabaseUrl') || SUPABASE_URL;
 
     if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(table)) {
         return json({ error: 'Nombre de tabla inválido.' }, 400);
@@ -53,25 +50,23 @@ export default async (request) => {
         return json({ error: 'La tabla solicitada no está permitida.' }, 403);
     }
 
-    if (!supabaseUrl) {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE) {
         return json({
-            error: 'Falta la URL de Supabase. Pégala en Configuración o en netlify/edge-functions/supabase-proxy.js'
+            error: 'Faltan variables de entorno de Supabase en Netlify.'
         }, 400);
     }
-    if (!isValidSupabaseUrl(supabaseUrl)) {
+    if (!isValidSupabaseUrl(SUPABASE_URL)) {
         return json({
             error: 'La URL de Supabase no es válida. Debe ser https://*.supabase.co'
         }, 400);
     }
 
-    const baseUrl = supabaseUrl.endsWith('/') ? supabaseUrl.slice(0, -1) : supabaseUrl;
+    const baseUrl = SUPABASE_URL.endsWith('/') ? SUPABASE_URL.slice(0, -1) : SUPABASE_URL;
     const supabaseEndpoint = `${baseUrl}/rest/v1/${table}?select=*`;
     const headers = { 'Content-Type': 'application/json' };
 
-    if (SUPABASE_ANON_KEY) {
-        headers.apikey = SUPABASE_ANON_KEY;
-        headers.Authorization = `Bearer ${SUPABASE_ANON_KEY}`;
-    }
+    headers.apikey = SUPABASE_SERVICE_ROLE;
+    headers.Authorization = `Bearer ${SUPABASE_SERVICE_ROLE}`;
 
     try {
         const response = await fetch(supabaseEndpoint, { headers });
