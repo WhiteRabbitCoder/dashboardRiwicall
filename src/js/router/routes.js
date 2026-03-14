@@ -1,22 +1,30 @@
 import { App } from '../app.js';
-import { Analitica } from '../components/analitica.js';
-import { Seguimiento } from '../components/seguimiento.js';
 import { dashboardView } from '../loaders/dashboardView.js';
-import { candidatosView } from '../loaders/candidatosView.js';
-import { configuracionView } from '../loaders/configuracionView.js';
-import { eventosView } from '../loaders/eventosView.js';
-import { llamadasView } from '../loaders/llamadasView.js';
-import { reportesView } from '../loaders/reportesView.js';
+import { candidatesView } from '../loaders/candidatesView.js';
+import { settingsView } from '../loaders/settingsView.js';
+import { eventsView } from '../loaders/eventsView.js';
+import { callsView } from '../loaders/callsView.js';
+import { reportsView } from '../loaders/reportsView.js';
+import { analyticsView } from '../loaders/analyticsView.js';
+import { trackingView } from '../loaders/trackingView.js';
 
 const routes = {
     '#/dashboard': dashboardView,
-    '#/candidatos': candidatosView,
-    '#/analitica': Analitica,
-    '#/configuracion': configuracionView,
-    '#/eventos': eventosView,
-    '#/llamadas': llamadasView,
-    '#/reportes': reportesView,
-    '#/seguimiento': Seguimiento
+    '#/candidates': candidatesView,
+    '#/analytics': analyticsView,
+    '#/settings': settingsView,
+    '#/events': eventsView,
+    '#/calls': callsView,
+    '#/reports': reportsView,
+    '#/tracking': trackingView,
+    // Legacy routes for backward compatibility
+    '#/candidatos': candidatesView,
+    '#/analitica': analyticsView,
+    '#/configuracion': settingsView,
+    '#/eventos': eventsView,
+    '#/llamadas': callsView,
+    '#/reportes': reportsView,
+    '#/seguimiento': trackingView
 };
 
 export const initRouter = () => {

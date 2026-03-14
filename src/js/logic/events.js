@@ -1,6 +1,6 @@
 import { syncEventosFromSupabase } from '../services/supabase.js';
 
-export function initEventosView() {
+export function initEventsView() {
     // Elementos del DOM
     const grid = document.getElementById('grid-eventos');
     const modalEv = document.getElementById('modalNuevoEvento');

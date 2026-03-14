@@ -1,4 +1,4 @@
-export const Seguimiento = {
+export const Tracking = {
     title: 'Seguimiento de Estados',
     cssPath: 'src/css/seguimiento.css',
     template: `

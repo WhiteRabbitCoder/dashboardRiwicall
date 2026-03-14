@@ -1,4 +1,4 @@
-export const Analitica = {
+export const Analytics = {
     title: 'Analítica de RiwiCalls',
     cssPath: 'src/css/analitica.css',
     template: `

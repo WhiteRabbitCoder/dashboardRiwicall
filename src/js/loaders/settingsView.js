@@ -1,6 +1,7 @@
-import { getNetlifyEdgeUrl, getSupabaseUrl, isSupabaseProjectUrl, saveNetlifyEdgeUrl, saveSupabaseUrl } from '../services/supabase.js';
+const WEBHOOK_STORAGE_KEY = 'call_flow_webhook_url';
+const LEGACY_WEBHOOK_STORAGE_KEY = 'webhook_n8n_url';
 
-export const configuracionView = {
+export const settingsView = {
     title: 'Configuración del Sistema',
 
     // 1. ESTRUCTURA (Template con Tailwind y CSS personalizado)
@@ -9,7 +10,7 @@ export const configuracionView = {
         <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
             <div class="flex items-center gap-2">
                 <i data-lucide="webhook" class="w-5 h-5 text-indigo-500"></i>
-                <h3 class="font-bold text-slate-800">Webhook n8n</h3>
+                <h3 class="font-bold text-slate-800">Webhook flujo llamadas</h3>
             </div>
             <div class="space-y-2">
                 <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">URL del Webhook de Automatización</label>
@@ -22,31 +23,6 @@ export const configuracionView = {
                     </button>
                 </div>
             </div>
-        </div>
-
-        <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
-            <div class="flex items-center gap-2">
-                <i data-lucide="database" class="w-5 h-5 text-indigo-500"></i>
-                <h3 class="font-bold text-slate-800">Supabase + Netlify Edge</h3>
-            </div>
-            <div class="space-y-2">
-                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">URL base de Supabase</label>
-                <input type="text" id="supabase-url"
-                    class="w-full p-3 rounded-xl border border-slate-100 bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                    placeholder="https://tu-proyecto.supabase.co">
-            </div>
-            <div class="space-y-2">
-                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">URL Netlify Edge Function</label>
-                <input type="text" id="netlify-edge-url"
-                    class="w-full p-3 rounded-xl border border-slate-100 bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                    placeholder="/.netlify/edge-functions/supabase-proxy">
-            </div>
-            <button id="btn-save-supabase" class="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-600 transition-all shadow-sm">
-                <i data-lucide="save" class="w-4 h-4 text-emerald-400"></i> Guardar conexión Supabase
-            </button>
-            <p class="text-xs text-slate-400 italic">
-                Deja el endpoint por defecto para Netlify y pega únicamente tu URL de proyecto en Supabase.
-            </p>
         </div>
 
         <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
@@ -92,28 +68,23 @@ export const configuracionView = {
     const btnWebhook = document.getElementById('btn-save-webhook');
     const webhookInput = document.getElementById('webhook-url');
     const btnSystem = document.getElementById('btn-save-system');
-    const supabaseInput = document.getElementById('supabase-url');
-    const netlifyEdgeInput = document.getElementById('netlify-edge-url');
-    const btnSupabase = document.getElementById('btn-save-supabase');
 
     // 2. CARGAR VALOR PREVIO (Muy importante para que no se borre al recargar)
     // Al cargar la vista, buscamos si ya había una URL guardada
-    const urlGuardada = localStorage.getItem('webhook_n8n_url');
+    const urlGuardada = localStorage.getItem(WEBHOOK_STORAGE_KEY) || localStorage.getItem(LEGACY_WEBHOOK_STORAGE_KEY);
     if (urlGuardada) {
         webhookInput.value = urlGuardada;
     }
-    supabaseInput.value = getSupabaseUrl();
-    netlifyEdgeInput.value = getNetlifyEdgeUrl();
 
     // 3. GUARDAR EL WEBHOOK
     btnWebhook.addEventListener('click', () => {
         const url = webhookInput.value.trim();
         
         if (url !== "") {
-            // Guardamos con la llave 'webhook_n8n_url' (la misma que usará la vista de llamadas)
-            localStorage.setItem('webhook_n8n_url', url);
-            console.log('URL de n8n sincronizada:', url);
-            alert(' ¡Configuración de n8n sincronizada con éxito!');
+            localStorage.setItem(WEBHOOK_STORAGE_KEY, url);
+            localStorage.removeItem(LEGACY_WEBHOOK_STORAGE_KEY);
+            console.log('Webhook de flujo sincronizado:', url);
+            alert(' ¡Configuración del webhook sincronizada con éxito!');
         } else {
             alert('Por favor, ingresa una URL válida.');
         }
@@ -122,24 +93,6 @@ export const configuracionView = {
     // Manejo del Intervalo
     btnSystem.addEventListener('click', () => {
         alert('Intervalo de actualización del sistema ajustado.');
-    });
-
-    btnSupabase.addEventListener('click', () => {
-        const supabaseUrl = supabaseInput.value.trim();
-        const netlifyUrl = netlifyEdgeInput.value.trim();
-
-        if (!supabaseUrl) {
-            alert('Pega la URL de Supabase antes de guardar.');
-            return;
-        }
-        if (!isSupabaseProjectUrl(supabaseUrl)) {
-            alert('La URL debe ser una URL válida de proyecto Supabase (https://*.supabase.co).');
-            return;
-        }
-
-        saveSupabaseUrl(supabaseUrl);
-        saveNetlifyEdgeUrl(netlifyUrl);
-        alert('Configuración de Supabase guardada y lista para sincronizar.');
     });
 
     if (window.lucide) lucide.createIcons();

@@ -1,4 +1,4 @@
-export function initAnaliticaView() {
+export function initAnalyticsView() {
     const chartContainer = document.getElementById('chart-activity');
     if (!chartContainer) return;
 

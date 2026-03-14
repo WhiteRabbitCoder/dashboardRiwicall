@@ -1,6 +1,6 @@
-import { getNetlifyEdgeUrl, getSupabaseUrl, isSupabaseProjectUrl, saveSupabaseUrl, syncCandidatosFromSupabase } from '../services/supabase.js';
+import { syncCandidatosFromSupabase } from '../services/supabase.js';
 
-export function initCandidatosView() {
+export function initCandidatesView() {
     // Copiado y adaptado de la lógica original en candidatosView.js
     const inputBusqueda = document.getElementById('searchInput');
     const selectEstado = document.getElementById('filtroEstado');
@@ -199,19 +199,11 @@ export function initCandidatosView() {
     document.getElementById('btnCancelarDB').onclick = cerrarDB;
 
     const dbUrlInput = document.getElementById('dbUrl');
-    if (dbUrlInput) {
-        const savedSupabaseUrl = getSupabaseUrl();
-        dbUrlInput.value = savedSupabaseUrl || getNetlifyEdgeUrl();
-    }
+    if (dbUrlInput) dbUrlInput.value = '/.netlify/edge-functions/supabase-proxy';
 
     btnSincronizar.onclick = async () => {
-        const inputValue = dbUrlInput?.value?.trim() || '';
-        if (!inputValue) return alert("URL requerida");
         btnSincronizar.disabled = true;
         try {
-            if (isSupabaseProjectUrl(inputValue)) {
-                saveSupabaseUrl(inputValue);
-            }
             const data = await syncCandidatosFromSupabase();
             if (Array.isArray(data)) {
                 listaOriginal = data;
