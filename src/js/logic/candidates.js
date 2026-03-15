@@ -1,4 +1,10 @@
-export function initCandidatosView() {
+import {
+    configureSupabaseConnection,
+    getSupabaseConnectionConfig,
+    syncCandidatosFromSupabase
+} from '../services/supabase.js';
+
+export function initCandidatesView() {
     // Copiado y adaptado de la lógica original en candidatosView.js
     const inputBusqueda = document.getElementById('searchInput');
     const selectEstado = document.getElementById('filtroEstado');
@@ -196,15 +202,42 @@ export function initCandidatosView() {
     document.getElementById('btnCerrarDB').onclick = cerrarDB;
     document.getElementById('btnCancelarDB').onclick = cerrarDB;
 
+    const dbUrlInput = document.getElementById('dbUrl');
+    const dbAnonKeyInput = document.getElementById('dbAnonKey');
+    const connection = getSupabaseConnectionConfig();
+
+    if (dbUrlInput) {
+        dbUrlInput.value = connection.supabaseUrl || '/.netlify/edge-functions/supabase-proxy';
+    }
+
     btnSincronizar.onclick = async () => {
-        const url = document.getElementById('dbUrl').value;
-        if (!url) return alert("URL requerida");
         btnSincronizar.disabled = true;
         try {
-            const res = await fetch(url);
-            const data = await res.json();
-            if (Array.isArray(data)) { listaOriginal = data; guardarEnLocal(); filtrar(); alert("Sincronizado"); cerrarDB(); }
-        } catch (e) { alert("Error de conexión"); }
+            const inputUrl = String(dbUrlInput?.value || '').trim();
+            const inputAnonKey = String(dbAnonKeyInput?.value || '').trim();
+            const wantsDirectSupabase = /\.supabase\.co\/?$/i.test(inputUrl);
+            const options = {};
+
+            if (wantsDirectSupabase) {
+                options.preferDirect = true;
+                options.supabaseUrl = inputUrl;
+                if (inputAnonKey) {
+                    options.supabaseAnonKey = inputAnonKey;
+                }
+                configureSupabaseConnection(options);
+            }
+
+            const data = await syncCandidatosFromSupabase(options);
+            if (Array.isArray(data)) {
+                listaOriginal = data;
+                guardarEnLocal();
+                filtrar();
+                alert("Sincronizado");
+                cerrarDB();
+            } else {
+                alert("La respuesta no tiene formato válido.");
+            }
+        } catch (e) { alert(e?.message || "Error de conexión"); }
         finally { btnSincronizar.disabled = false; }
     };
 

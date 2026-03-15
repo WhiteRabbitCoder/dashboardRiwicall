@@ -1,4 +1,4 @@
-export const reportesView = {
+export const reportsView = {
     title: 'Reportes y Descargas',
 
     // 1. ESTRUCTURA (HTML y CSS)

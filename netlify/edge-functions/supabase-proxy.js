@@ -1,0 +1,89 @@
+const SUPABASE_URL = Netlify.env.get('SUPABASE_URL');
+const SUPABASE_SERVICE_ROLE = Netlify.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+const json = (payload, status = 200) => new Response(JSON.stringify(payload), {
+    status,
+    headers: { 'content-type': 'application/json; charset=utf-8' }
+});
+
+const ALLOWED_TABLES = new Set([
+    'candidato_ideal',
+    'candidatos',
+    'cola_llamadas',
+    'conocimientos_programacion',
+    'departamentos',
+    'estados_gestion',
+    'estratos',
+    'eventos',
+    'generos',
+    'historial_fases',
+    'horarios',
+    'llamadas',
+    'medios_comunicacion',
+    'motivos_llamada',
+    'municipios',
+    'niveles_educativos',
+    'ocupaciones',
+    'resultados_llamada',
+    'sedes',
+    'tipos_convenio',
+    'tipos_documento'
+]);
+
+const isValidSupabaseUrl = (value) => {
+    try {
+        const parsed = new URL(value);
+        return parsed.protocol === 'https:' && parsed.hostname.endsWith('.supabase.co');
+    } catch (error) {
+        return false;
+    }
+};
+
+export default async (request) => {
+    const requestUrl = new URL(request.url);
+    const table = requestUrl.searchParams.get('table') || 'candidatos';
+
+    if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(table)) {
+        return json({ error: 'Nombre de tabla inválido.' }, 400);
+    }
+    if (!ALLOWED_TABLES.has(table)) {
+        return json({ error: 'La tabla solicitada no está permitida.' }, 403);
+    }
+
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE) {
+        return json({
+            error: 'Faltan variables de entorno de Supabase en Netlify.'
+        }, 400);
+    }
+    if (!isValidSupabaseUrl(SUPABASE_URL)) {
+        return json({
+            error: 'La URL de Supabase no es válida. Debe ser https://*.supabase.co'
+        }, 400);
+    }
+
+    const baseUrl = SUPABASE_URL.endsWith('/') ? SUPABASE_URL.slice(0, -1) : SUPABASE_URL;
+    const supabaseEndpoint = `${baseUrl}/rest/v1/${table}?select=*`;
+    const headers = { 'Content-Type': 'application/json' };
+
+    headers.apikey = SUPABASE_SERVICE_ROLE;
+    headers.Authorization = `Bearer ${SUPABASE_SERVICE_ROLE}`;
+
+    try {
+        const response = await fetch(supabaseEndpoint, { headers });
+        const data = await response.json();
+
+        if (!response.ok) {
+            return json({
+                error: 'Supabase devolvió un error.',
+                detail: data
+            }, response.status);
+        }
+
+        return json(data);
+    } catch (error) {
+        return json({
+            error: 'No fue posible conectar con Supabase desde Netlify Edge Function.',
+            detail: String(error?.message || error)
+        }, 502);
+    }
+};

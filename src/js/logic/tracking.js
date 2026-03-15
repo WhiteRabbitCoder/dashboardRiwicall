@@ -1,4 +1,4 @@
-export function initSeguimientoView() {
+export function initTrackingView() {
     const board = document.getElementById('kanban-board');
     const summary = document.getElementById('summary-steps');
     if (!board || !summary) return;

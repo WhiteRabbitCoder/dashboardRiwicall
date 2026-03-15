@@ -1,4 +1,7 @@
-export const configuracionView = {
+const WEBHOOK_STORAGE_KEY = 'call_flow_webhook_url';
+const LEGACY_WEBHOOK_STORAGE_KEY = 'webhook_n8n_url';
+
+export const settingsView = {
     title: 'Configuración del Sistema',
 
     // 1. ESTRUCTURA (Template con Tailwind y CSS personalizado)
@@ -7,7 +10,7 @@ export const configuracionView = {
         <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
             <div class="flex items-center gap-2">
                 <i data-lucide="webhook" class="w-5 h-5 text-indigo-500"></i>
-                <h3 class="font-bold text-slate-800">Webhook n8n</h3>
+                <h3 class="font-bold text-slate-800">Webhook flujo llamadas</h3>
             </div>
             <div class="space-y-2">
                 <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">URL del Webhook de Automatización</label>
@@ -68,7 +71,7 @@ export const configuracionView = {
 
     // 2. CARGAR VALOR PREVIO (Muy importante para que no se borre al recargar)
     // Al cargar la vista, buscamos si ya había una URL guardada
-    const urlGuardada = localStorage.getItem('webhook_n8n_url');
+    const urlGuardada = localStorage.getItem(WEBHOOK_STORAGE_KEY) || localStorage.getItem(LEGACY_WEBHOOK_STORAGE_KEY);
     if (urlGuardada) {
         webhookInput.value = urlGuardada;
     }
@@ -78,10 +81,10 @@ export const configuracionView = {
         const url = webhookInput.value.trim();
         
         if (url !== "") {
-            // Guardamos con la llave 'webhook_n8n_url' (la misma que usará la vista de llamadas)
-            localStorage.setItem('webhook_n8n_url', url);
-            console.log('URL de n8n sincronizada:', url);
-            alert(' ¡Configuración de n8n sincronizada con éxito!');
+            localStorage.setItem(WEBHOOK_STORAGE_KEY, url);
+            localStorage.removeItem(LEGACY_WEBHOOK_STORAGE_KEY);
+            console.log('Webhook de flujo sincronizado:', url);
+            alert(' ¡Configuración del webhook sincronizada con éxito!');
         } else {
             alert('Por favor, ingresa una URL válida.');
         }
