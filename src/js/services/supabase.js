@@ -9,6 +9,24 @@ const isRunningOnNetlify = () => window.location.hostname.endsWith('.netlify.app
 const isLocalDevHost = () => ['localhost', '127.0.0.1'].includes(window.location.hostname);
 const isSecretKey = (value) => String(value || '').trim().startsWith('sb_secret_');
 
+const buildLookupMap = (list = [], labelKey = 'descripcion') => {
+    const map = new Map();
+    (list || []).forEach((item) => {
+        map.set(String(item.id), {
+            ...item,
+            label: item[labelKey] ?? item.descripcion ?? item.nombre ?? String(item.id)
+        });
+    });
+    return map;
+};
+
+const calculateAge = (isoDate) => {
+    if (!isoDate) return '';
+    const fecha = new Date(isoDate);
+    if (Number.isNaN(fecha.getTime())) return '';
+    return Math.max(0, Math.floor((Date.now() - fecha.getTime()) / (1000 * 60 * 60 * 24 * 365.25)));
+};
+
 const normalizeSupabaseUrl = (value) => {
     if (!value) return '';
 
@@ -55,58 +73,317 @@ export function getSupabaseConnectionConfig() {
 export async function syncCandidatosFromSupabase(options = {}) {
     const [
         candidatos,
+        tiposDocumento,
         generos,
+        tiposConvenio,
+        departamentos,
         municipios,
+        sedes,
+        estratos,
         nivelesEducativos,
         conocimientosProgramacion,
+        ocupaciones,
         horarios,
-        estadosGestion
+        mediosComunicacion,
+        motivosLlamada,
+        estadosGestion,
+        eventos
     ] = await Promise.all([
         fetchSupabaseTable('candidatos', options),
+        fetchSupabaseTable('tipos_documento', options),
         fetchSupabaseTable('generos', options),
+        fetchSupabaseTable('tipos_convenio', options),
+        fetchSupabaseTable('departamentos', options),
         fetchSupabaseTable('municipios', options),
+        fetchSupabaseTable('sedes', options),
+        fetchSupabaseTable('estratos', options),
         fetchSupabaseTable('niveles_educativos', options),
         fetchSupabaseTable('conocimientos_programacion', options),
+        fetchSupabaseTable('ocupaciones', options),
         fetchSupabaseTable('horarios', options),
-        fetchSupabaseTable('estados_gestion', options)
+        fetchSupabaseTable('medios_comunicacion', options),
+        fetchSupabaseTable('motivos_llamada', options),
+        fetchSupabaseTable('estados_gestion', options),
+        fetchSupabaseTable('eventos', options)
     ]);
 
-    const porId = (list) => new Map((list || []).map(item => [String(item.id), item]));
-    const generosMap = porId(generos);
-    const municipiosMap = porId(municipios);
-    const nivelesMap = porId(nivelesEducativos);
-    const conocimientosMap = porId(conocimientosProgramacion);
-    const horariosMap = porId(horarios);
-    const estadosMap = porId(estadosGestion);
+    const tiposDocumentoMap = buildLookupMap(tiposDocumento);
+    const generosMap = buildLookupMap(generos);
+    const tiposConvenioMap = buildLookupMap(tiposConvenio);
+    const departamentosMap = buildLookupMap(departamentos, 'nombre');
+    const municipiosMap = buildLookupMap(municipios, 'nombre');
+    const sedesMap = buildLookupMap(sedes, 'nombre');
+    const estratosMap = buildLookupMap(estratos, 'valor');
+    const nivelesMap = buildLookupMap(nivelesEducativos);
+    const conocimientosMap = buildLookupMap(conocimientosProgramacion);
+    const ocupacionesMap = buildLookupMap(ocupaciones);
+    const horariosMap = buildLookupMap(horarios);
+    const mediosMap = buildLookupMap(mediosComunicacion);
+    const motivosMap = buildLookupMap(motivosLlamada);
+    const estadosMap = buildLookupMap(estadosGestion);
+    const eventosMap = buildLookupMap(
+        (eventos || []).map((evento) => ({
+            ...evento,
+            descripcion: `${evento.tipo_reunion || 'Evento'}${evento.fecha_hora ? ` - ${new Date(evento.fecha_hora).toLocaleString()}` : ''}`
+        }))
+    );
 
     return (candidatos || []).map((candidato) => {
+        const tipoDocumento = tiposDocumentoMap.get(String(candidato.tipo_documento_id));
         const genero = generosMap.get(String(candidato.genero_id));
+        const convenio = tiposConvenioMap.get(String(candidato.tipo_convenio_id));
+        const departamento = departamentosMap.get(String(candidato.departamento_id));
         const municipio = municipiosMap.get(String(candidato.municipio_id));
+        const sede = sedesMap.get(String(candidato.sede_interes_id));
+        const estrato = estratosMap.get(String(candidato.estrato_id));
         const nivelEducativo = nivelesMap.get(String(candidato.nivel_educativo_id));
         const nivelProg = conocimientosMap.get(String(candidato.conocimiento_programacion_id));
+        const ocupacion = ocupacionesMap.get(String(candidato.ocupacion_id));
         const horario = horariosMap.get(String(candidato.horario_id));
+        const medio = mediosMap.get(String(candidato.medio_comunicacion_id));
+        const motivoLlamada = motivosMap.get(String(candidato.motivo_llamada_id));
         const estadoGestion = estadosMap.get(String(candidato.estado_gestion_id));
-        const fechaNacimiento = candidato.fecha_nacimiento ? new Date(candidato.fecha_nacimiento) : null;
-        const edad = fechaNacimiento && !Number.isNaN(fechaNacimiento.getTime())
-            ? Math.max(0, Math.floor((Date.now() - fechaNacimiento.getTime()) / (1000 * 60 * 60 * 24 * 365.25)))
-            : '';
+        const eventoAsignado = eventosMap.get(String(candidato.evento_asignado_id));
+        const edad = calculateAge(candidato.fecha_nacimiento);
+        const nombreCompleto = [candidato.nombre, candidato.apellido].filter(Boolean).join(' ').trim() || 'Sin nombre';
 
         return {
             id: candidato.id,
-            nombre: [candidato.nombre, candidato.apellido].filter(Boolean).join(' ').trim() || 'Sin nombre',
+            nombre: nombreCompleto,
+            nombreCompleto,
+            nombre_raw: candidato.nombre || '',
+            apellido: candidato.apellido || '',
+            tipo_documento_id: candidato.tipo_documento_id,
+            tipo_documento: tipoDocumento?.label || '',
+            numero_documento: candidato.numero_documento ? String(candidato.numero_documento) : '',
             cedula: candidato.numero_documento ? String(candidato.numero_documento) : '',
+            documento: candidato.numero_documento ? String(candidato.numero_documento) : '',
             edad,
             genero: genero?.descripcion || 'Otro',
+            genero_id: candidato.genero_id,
             tel: candidato.telefono || '',
+            telefono: candidato.telefono || '',
+            correo: candidato.correo || '',
+            pais_codigo: candidato.pais_codigo || '+57',
+            fecha_nacimiento: candidato.fecha_nacimiento || '',
+            tipo_convenio_id: candidato.tipo_convenio_id,
+            tipo_convenio: convenio?.label || '',
+            departamento_id: candidato.departamento_id,
+            departamento: departamento?.label || '',
+            municipio_id: candidato.municipio_id,
             municipio: municipio?.nombre || '',
+            sede_interes_id: candidato.sede_interes_id,
+            sede_interes: sede?.label || '',
+            estrato_id: candidato.estrato_id,
+            estrato: estrato?.label ? String(estrato.label) : '',
             educacion: nivelEducativo?.descripcion || '',
+            nivel_educativo_id: candidato.nivel_educativo_id,
+            titulo: candidato.titulo || '',
             programacion: nivelProg?.descripcion || '',
+            conocimiento_programacion_id: candidato.conocimiento_programacion_id,
+            ocupacion_id: candidato.ocupacion_id,
+            ocupacion: ocupacion?.label || '',
             jornada: horario?.descripcion || '',
+            horario_id: candidato.horario_id,
+            medio_comunicacion_id: candidato.medio_comunicacion_id,
+            medio_comunicacion: medio?.label || '',
+            motivo_llamada_id: candidato.motivo_llamada_id,
+            motivo_llamada: motivoLlamada?.label || '',
+            estado_gestion_id: candidato.estado_gestion_id,
+            estado_gestion: estadoGestion?.descripcion || '',
             estado: estadoGestion?.descripcion || candidato.fase_actual || 'Inscrito',
             fase_actual: candidato.fase_actual || '',
-            intentos_llamada: candidato.intentos_llamada || 0
+            evento_asignado_id: candidato.evento_asignado_id,
+            evento_asignado: eventoAsignado?.label || '',
+            intentos_llamada: candidato.intentos_llamada || 0,
+            proxima_llamada: candidato.proxima_llamada || '',
+            hora_preferida_llamada: candidato.hora_preferida_llamada || '',
+            nota_horario: candidato.nota_horario || '',
+            form_name: candidato.form_name || '',
+            form_id: candidato.form_id || ''
         };
     });
+}
+
+export async function getCandidatosCatalogos(options = {}) {
+    const [
+        tiposDocumento,
+        generos,
+        tiposConvenio,
+        departamentos,
+        municipios,
+        sedes,
+        estratos,
+        horarios,
+        mediosComunicacion,
+        nivelesEducativos,
+        conocimientosProgramacion,
+        ocupaciones,
+        motivosLlamada,
+        estadosGestion,
+        eventos
+    ] = await Promise.all([
+        fetchSupabaseTable('tipos_documento', options),
+        fetchSupabaseTable('generos', options),
+        fetchSupabaseTable('tipos_convenio', options),
+        fetchSupabaseTable('departamentos', options),
+        fetchSupabaseTable('municipios', options),
+        fetchSupabaseTable('sedes', options),
+        fetchSupabaseTable('estratos', options),
+        fetchSupabaseTable('horarios', options),
+        fetchSupabaseTable('medios_comunicacion', options),
+        fetchSupabaseTable('niveles_educativos', options),
+        fetchSupabaseTable('conocimientos_programacion', options),
+        fetchSupabaseTable('ocupaciones', options),
+        fetchSupabaseTable('motivos_llamada', options),
+        fetchSupabaseTable('estados_gestion', options),
+        fetchSupabaseTable('eventos', options)
+    ]);
+
+    return {
+        tiposDocumento,
+        generos,
+        tiposConvenio,
+        departamentos,
+        municipios,
+        sedes,
+        estratos,
+        horarios,
+        mediosComunicacion,
+        nivelesEducativos,
+        conocimientosProgramacion,
+        ocupaciones,
+        motivosLlamada,
+        estadosGestion,
+        eventos
+    };
+}
+
+const readMutationFromEdgeProxy = async (table, { method = 'POST', query = '', body } = {}) => {
+    const endpoint = new URL(EDGE_PROXY_URL, window.location.origin);
+    endpoint.searchParams.set('table', table);
+    if (query) {
+        const raw = query.startsWith('?') ? query.slice(1) : query;
+        const params = new URLSearchParams(raw);
+        for (const [key, value] of params.entries()) {
+            endpoint.searchParams.set(key, value);
+        }
+    }
+
+    const response = await fetch(endpoint.toString(), {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined
+    });
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok) {
+        const detail = typeof data === 'object' && data !== null
+            ? (data.error || data.message || JSON.stringify(data))
+            : String(data || '');
+        throw new Error(`Edge Function devolvio ${response.status}${detail ? `: ${detail}` : ''}`);
+    }
+
+    return data;
+};
+
+const mutateDirectSupabase = async (
+    table,
+    { method = 'POST', query = '', body } = {},
+    { supabaseUrl, supabaseAnonKey }
+) => {
+    if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Faltan SUPABASE_URL o SUPABASE_ANON_KEY para escritura directa.');
+    }
+    if (isSecretKey(supabaseAnonKey)) {
+        throw new Error('La secret key no se puede usar directo en navegador.');
+    }
+
+    const endpoint = `${supabaseUrl}/rest/v1/${table}${query || ''}`;
+    const response = await fetch(endpoint, {
+        method,
+        headers: {
+            'Content-Type': 'application/json',
+            Prefer: 'return=representation',
+            apikey: supabaseAnonKey,
+            Authorization: `Bearer ${supabaseAnonKey}`
+        },
+        body: body ? JSON.stringify(body) : undefined
+    });
+
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+        const detail = typeof data === 'object' && data !== null
+            ? (data.message || data.error || data.hint || JSON.stringify(data))
+            : String(data || '');
+        throw new Error(`Supabase REST devolvio ${response.status}${detail ? `: ${detail}` : ''}`);
+    }
+
+    return data;
+};
+
+async function mutateSupabaseTable(table, operation = {}, options = {}) {
+    const config = getSupabaseConnectionConfig();
+    const overrideUrl = normalizeSupabaseUrl(options.supabaseUrl || '');
+    const overrideKey = String(options.supabaseAnonKey || '').trim();
+    const supabaseUrl = overrideUrl || config.supabaseUrl;
+    const supabaseAnonKey = overrideKey || config.supabaseAnonKey;
+    const preferDirect = typeof options.preferDirect === 'boolean'
+        ? options.preferDirect
+        : !isRunningOnNetlify();
+
+    const strategies = [];
+    if (isLocalDevHost()) {
+        if (preferDirect) {
+            strategies.push(() => mutateDirectSupabase(table, operation, { supabaseUrl, supabaseAnonKey }));
+            strategies.push(() => readMutationFromEdgeProxy(table, operation));
+        } else {
+            strategies.push(() => readMutationFromEdgeProxy(table, operation));
+            strategies.push(() => mutateDirectSupabase(table, operation, { supabaseUrl, supabaseAnonKey }));
+        }
+    } else if (preferDirect) {
+        strategies.push(() => mutateDirectSupabase(table, operation, { supabaseUrl, supabaseAnonKey }));
+        strategies.push(() => readMutationFromEdgeProxy(table, operation));
+    } else {
+        strategies.push(() => readMutationFromEdgeProxy(table, operation));
+        strategies.push(() => mutateDirectSupabase(table, operation, { supabaseUrl, supabaseAnonKey }));
+    }
+
+    const errors = [];
+    for (const strategy of strategies) {
+        try {
+            return await strategy();
+        } catch (error) {
+            errors.push(error?.message || String(error));
+        }
+    }
+
+    throw new Error(`No fue posible escribir en ${table}. ${errors.join(' | ')}`);
+}
+
+export async function createCandidatoInSupabase(payload, options = {}) {
+    const response = await mutateSupabaseTable('candidatos', {
+        method: 'POST',
+        query: '?select=*',
+        body: payload
+    }, options);
+    return Array.isArray(response) ? response[0] : response;
+}
+
+export async function updateCandidatoInSupabase(id, payload, options = {}) {
+    const response = await mutateSupabaseTable('candidatos', {
+        method: 'PATCH',
+        query: `?id=eq.${encodeURIComponent(id)}&select=*`,
+        body: payload
+    }, options);
+    return Array.isArray(response) ? response[0] : response;
+}
+
+export async function deleteCandidatoInSupabase(id, options = {}) {
+    await mutateSupabaseTable('candidatos', {
+        method: 'DELETE',
+        query: `?id=eq.${encodeURIComponent(id)}&select=id`
+    }, options);
 }
 
 export async function syncLlamadasFromSupabase(options = {}) {

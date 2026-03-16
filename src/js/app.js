@@ -1,3 +1,4 @@
+import '../style.css';
 import { initRouter } from './router/routes.js';
 import { Sidebar } from './components/sidebar.js';
 
@@ -69,4 +70,3 @@ document.addEventListener('DOMContentLoaded', () => {
     // Encendemos el Router para que detecte la URL actual
     initRouter();     
 });
-

@@ -1,246 +1,582 @@
 import {
-    configureSupabaseConnection,
-    getSupabaseConnectionConfig,
-    syncCandidatosFromSupabase
+    createCandidatoInSupabase,
+    deleteCandidatoInSupabase,
+    getCandidatosCatalogos,
+    syncCandidatosFromSupabase,
+    updateCandidatoInSupabase
 } from '../services/supabase.js';
 
+const STORAGE_KEY = 'candidatos_riwicalls';
+const CALL_CANDIDATE_ENDPOINT = '/api/calls/candidate';
+
+const toIntOrNull = (value) => {
+    const n = Number(value);
+    return Number.isInteger(n) ? n : null;
+};
+
+const sanitize = (value) => String(value || '').trim();
+
+const setOptions = (select, list, {
+    emptyLabel = '',
+    emptyValue = ''
+} = {}) => {
+    if (!select) return;
+    const options = [];
+    if (emptyLabel) options.push(`<option value="${emptyValue}">${emptyLabel}</option>`);
+    options.push(...(list || []).map((item) => {
+        const label = item.descripcion ?? item.nombre ?? item.valor ?? item.codigo ?? item.id;
+        return `<option value="${item.id}">${label}</option>`;
+    }));
+    select.innerHTML = options.join('');
+};
+
+// ...existing code... (removed unused calculateAge)
+
 export function initCandidatesView() {
-    // Copiado y adaptado de la lógica original en candidatosView.js
     const inputBusqueda = document.getElementById('searchInput');
-    const selectEstado = document.getElementById('filtroEstado');
-    const selectGenero = document.getElementById('filtroGenero');
+    const filtroEstado = document.getElementById('filtroEstado');
+    const filtroMotivo = document.getElementById('filtroMotivo');
+    const filtroEvento = document.getElementById('filtroEvento');
+    const tbody = document.getElementById('cuerpoTabla');
     const modal = document.getElementById('modalRegistro');
-    const btnDropdown = document.getElementById('btnDropdownImportar');
-    const menuImportar = document.getElementById('menuImportar');
-    const optExcel = document.getElementById('optExcel');
-    const inputFile = document.getElementById('inputFileExcel');
-    const modalDB = document.getElementById('modalDB');
-    const optDatabase = document.getElementById('optDatabase');
-    const btnSincronizar = document.getElementById('btnSincronizar');
+    const tituloModal = document.querySelector('#modalRegistro h2');
+    const btnGuardar = document.getElementById('btnGuardar');
 
-    let editandoIndex = null; 
-    const datosEnMemoria = localStorage.getItem('candidatos_riwicalls');
-    let listaOriginal = datosEnMemoria ? JSON.parse(datosEnMemoria) : [];
+    if (!tbody || !modal || !btnGuardar) return;
 
-    const guardarEnLocal = () => { localStorage.setItem('candidatos_riwicalls', JSON.stringify(listaOriginal)); };
+    let listaOriginal = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    let editandoId = null;
+    let catalogos = {
+        tiposDocumento: [],
+        generos: [],
+        tiposConvenio: [],
+        departamentos: [],
+        municipios: [],
+        sedes: [],
+        estratos: [],
+        horarios: [],
+        mediosComunicacion: [],
+        nivelesEducativos: [],
+        conocimientosProgramacion: [],
+        ocupaciones: [],
+        motivosLlamada: [],
+        estadosGestion: [],
+        eventos: []
+    };
 
-    const actualizarTabla = (datos) => {
-        const tbody = document.getElementById('cuerpoTabla');
-        if (!tbody) return;
+    const guardarEnLocal = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(listaOriginal));
 
-        tbody.innerHTML = datos.map((c, index) => `
+    const obtenerCandidato = (id) => listaOriginal.find((c) => String(c.id) === String(id));
+
+    const renderTabla = (datos) => {
+        tbody.innerHTML = (datos || []).map((candidato) => `
             <tr class="hover:bg-slate-50/50 transition-colors text-sm">
-                <td class="px-6 py-4 font-bold text-slate-700">${c.nombre}</td>
-                <td class="px-6 py-4 text-slate-500">${c.cedula}</td>
-                <td class="px-6 py-4 text-slate-500">${c.edad}</td>
-                <td class="px-6 py-4 text-slate-500">${c.genero}</td>
-                <td class="px-6 py-4 text-slate-500">${c.tel || ''}</td>
-                <td class="px-6 py-4 text-slate-500">${c.municipio}</td>
-                <td class="px-6 py-4 text-slate-500">${c.educacion}</td>
-                <td class="px-6 py-4 text-slate-500">${c.programacion}</td>
-                <td class="px-6 py-4 text-slate-500">${c.jornada}</td>
-                <td class="px-6 py-4">
-                    <span class="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[11px] font-bold">${c.estado}</span>
-                </td>
+                <td class="px-6 py-4 font-bold text-slate-700">${candidato.nombre || '-'}</td>
+                <td class="px-6 py-4 text-slate-500">${candidato.tipo_documento || '-'}</td>
+                <td class="px-6 py-4 text-slate-500">${candidato.numero_documento || candidato.cedula || '-'}</td>
+                <td class="px-6 py-4 text-slate-500">${candidato.edad || '-'}</td>
+                <td class="px-6 py-4 text-slate-500">${candidato.telefono || candidato.tel || '-'}</td>
+                <td class="px-6 py-4 text-slate-500">${candidato.motivo_llamada || '-'}</td>
+                <td class="px-6 py-4"><span class="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[11px] font-bold">${candidato.estado_gestion || candidato.estado || '-'}</span></td>
+                <td class="px-6 py-4 text-slate-500">${candidato.evento_asignado || 'Sin evento'}</td>
                 <td class="px-6 py-4 text-center">
                     <div class="flex items-center justify-center gap-3">
-                        <button class="btn-editar text-blue-400 hover:text-blue-600 transition-colors" data-index="${index}">
-                            <i data-lucide="pencil" class="w-4 h-4"></i>
-                        </button>
-                        <button class="btn-eliminar text-red-400 hover:text-red-600 transition-colors" data-index="${index}">
-                            <i data-lucide="trash-2" class="w-4 h-4"></i>
-                        </button>
+                        <button class="btn-editar text-blue-500 hover:text-blue-700 transition-colors" title="Editar candidato" data-id="${candidato.id || ''}"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                        <button class="btn-llamar text-emerald-500 hover:text-emerald-700 transition-colors" title="Llamar candidato" data-id="${candidato.id || ''}"><i data-lucide="phone-call" class="w-4 h-4"></i></button>
+                        <button class="btn-eliminar text-red-500 hover:text-red-700 transition-colors" title="Eliminar candidato" data-id="${candidato.id || ''}"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                     </div>
                 </td>
             </tr>
         `).join('');
-
-        if (window.lucide) lucide.createIcons();
-
-        tbody.querySelectorAll('.btn-editar').forEach(btn => {
-            btn.onclick = () => {
-                const index = btn.getAttribute('data-index');
-                const c = datos[index];
-                editandoIndex = listaOriginal.indexOf(c);
-
-                document.querySelector('#modalRegistro h2').innerText = "Editar Candidato";
-                document.getElementById('btnGuardar').innerText = "Guardar Cambios";
-
-                const nombres = c.nombre.split(' ');
-                document.getElementById('regNombre').value = nombres[0] || '';
-                document.getElementById('regApellido').value = nombres.slice(1).join(' ') || '';
-                document.getElementById('regCedula').value = c.cedula;
-                document.getElementById('regEdad').value = c.edad;
-                document.getElementById('regGenero').value = c.genero;
-                document.getElementById('regTel').value = c.tel || '';
-                document.getElementById('regMunicipio').value = c.municipio;
-                document.getElementById('regEducacion').value = c.educacion;
-                document.getElementById('regProgramacion').value = c.programacion;
-                document.getElementById('regJornada').value = c.jornada;
-                document.getElementById('regEstado').value = c.estado;
-
-                modal.classList.remove('hidden');
-                modal.classList.add('flex');
-            };
-        });
-
-        tbody.querySelectorAll('.btn-eliminar').forEach(btn => {
-            btn.onclick = () => {
-                const index = btn.getAttribute('data-index');
-                const c = datos[index];
-                if(confirm(`¿Estás seguro de eliminar a ${c.nombre}?`)) {
-                    const realIndex = listaOriginal.indexOf(c);
-                    listaOriginal.splice(realIndex, 1);
-                    guardarEnLocal();
-                    filtrar();
-                }
-            };
-        });
+        if (window.lucide) window.lucide.createIcons();
     };
 
     const filtrar = () => {
-        const busqueda = inputBusqueda.value.toLowerCase();
-        const filtrados = listaOriginal.filter(c => {
-            const matchBusqueda = c.nombre.toLowerCase().includes(busqueda) || c.cedula.includes(busqueda);
-            const matchEstado = selectEstado.value === "Todos" || c.estado === selectEstado.value;
-            const matchGenero = selectGenero.value === "Todos" || c.genero === selectGenero.value;
-            return matchBusqueda && matchEstado && matchGenero;
+        const texto = sanitize(inputBusqueda?.value).toLowerCase();
+        const estado = filtroEstado?.value || 'Todos';
+        const motivo = filtroMotivo?.value || 'Todos';
+        const evento = filtroEvento?.value || 'Todos';
+
+        const datos = listaOriginal.filter((candidato) => {
+            const searchable = [
+                candidato.nombre,
+                candidato.numero_documento,
+                candidato.cedula,
+                candidato.telefono,
+                candidato.tel,
+                candidato.correo
+            ].join(' ').toLowerCase();
+            const matchBusqueda = !texto || searchable.includes(texto);
+
+            // Comparar tanto por id como por descripción/etiqueta, para soportar catálogos vacíos
+            const matchEstado = estado === 'Todos'
+                || String(candidato.estado_gestion_id) === estado
+                || String(candidato.estado_gestion) === estado
+                || String(candidato.estado) === estado;
+
+            const matchMotivo = motivo === 'Todos'
+                || String(candidato.motivo_llamada_id) === motivo
+                || String(candidato.motivo_llamada) === motivo
+                || String(candidato.motivo) === motivo;
+
+            const matchEvento = evento === 'Todos'
+                || (evento === 'SIN_EVENTO' && !candidato.evento_asignado_id)
+                || String(candidato.evento_asignado_id) === evento
+                || String(candidato.evento_asignado) === evento;
+
+            return matchBusqueda && matchEstado && matchMotivo && matchEvento;
         });
-        actualizarTabla(filtrados);
+
+        renderTabla(datos);
     };
 
-    const cerrar = () => {
+    const setMunicipiosPorDepartamento = (departamentoId, municipioSeleccionado = '') => {
+        const selectMunicipio = document.getElementById('regMunicipio');
+        const municipiosFiltrados = catalogos.municipios
+            .filter((m) => String(m.departamento_id) === String(departamentoId));
+        setOptions(selectMunicipio, municipiosFiltrados);
+        if (municipioSeleccionado) {
+            selectMunicipio.value = String(municipioSeleccionado);
+        }
+    };
+
+    const poblarSelectsFormulario = () => {
+        setOptions(document.getElementById('regTipoDocumento'), catalogos.tiposDocumento);
+        setOptions(document.getElementById('regGenero'), catalogos.generos);
+        setOptions(document.getElementById('regTipoConvenio'), catalogos.tiposConvenio);
+        setOptions(document.getElementById('regDepartamento'), catalogos.departamentos);
+        setOptions(document.getElementById('regSedeInteres'), catalogos.sedes);
+        setOptions(document.getElementById('regEstrato'), catalogos.estratos);
+        setOptions(document.getElementById('regHorario'), catalogos.horarios);
+        setOptions(document.getElementById('regMedioComunicacion'), catalogos.mediosComunicacion);
+        setOptions(document.getElementById('regNivelEducativo'), catalogos.nivelesEducativos, { emptyLabel: 'Sin definir' });
+        setOptions(document.getElementById('regConocimientoProgramacion'), catalogos.conocimientosProgramacion, { emptyLabel: 'Sin definir' });
+        setOptions(document.getElementById('regOcupacion'), catalogos.ocupaciones, { emptyLabel: 'Sin definir' });
+        setOptions(document.getElementById('regMotivoLlamada'), catalogos.motivosLlamada, { emptyLabel: 'Sin definir' });
+        setOptions(document.getElementById('regEstadoGestion'), catalogos.estadosGestion);
+        setOptions(document.getElementById('regEventoAsignado'), catalogos.eventos, { emptyLabel: 'Sin evento' });
+
+        const selectDepartamento = document.getElementById('regDepartamento');
+        if (selectDepartamento) {
+            const firstDepartamento = selectDepartamento.value;
+            setMunicipiosPorDepartamento(firstDepartamento);
+            selectDepartamento.onchange = () => setMunicipiosPorDepartamento(selectDepartamento.value);
+        }
+    };
+
+    const poblarFiltros = () => {
+        setOptions(filtroEstado, catalogos.estadosGestion, { emptyLabel: 'Estado: Todos', emptyValue: 'Todos' });
+        setOptions(filtroMotivo, catalogos.motivosLlamada, { emptyLabel: 'Motivo: Todos', emptyValue: 'Todos' });
+        setOptions(filtroEvento, catalogos.eventos, { emptyLabel: 'Evento: Todos', emptyValue: 'Todos' });
+        filtroEvento.insertAdjacentHTML('beforeend', '<option value="SIN_EVENTO">Sin evento</option>');
+    };
+
+    // Fallback: si no hay catálogos desde Supabase, construir opciones desde los datos locales
+    const poblarFiltrosDesdeLocal = () => {
+        const estadosMap = new Map();
+        const motivosMap = new Map();
+        const eventosMap = new Map();
+
+        (listaOriginal || []).forEach((c) => {
+            const estId = c.estado_gestion_id ? String(c.estado_gestion_id) : (c.estado_gestion ? c.estado_gestion : null);
+            const estLabel = c.estado_gestion || c.estado || estId;
+            if (estId) estadosMap.set(estId, estLabel);
+
+            const motId = c.motivo_llamada_id ? String(c.motivo_llamada_id) : (c.motivo_llamada ? c.motivo_llamada : null);
+            const motLabel = c.motivo_llamada || c.motivo || motId;
+            if (motId) motivosMap.set(motId, motLabel);
+
+            const evId = c.evento_asignado_id ? String(c.evento_asignado_id) : (c.evento_asignado ? c.evento_asignado : null);
+            const evLabel = c.evento_asignado || evId;
+            if (evId) eventosMap.set(evId, evLabel);
+        });
+
+        const estados = Array.from(estadosMap.entries()).map(([id, descripcion]) => ({ id, descripcion }));
+        const motivos = Array.from(motivosMap.entries()).map(([id, descripcion]) => ({ id, descripcion }));
+        const eventos = Array.from(eventosMap.entries()).map(([id, descripcion]) => ({ id, descripcion }));
+
+        setOptions(filtroEstado, estados, { emptyLabel: 'Estado: Todos', emptyValue: 'Todos' });
+        setOptions(filtroMotivo, motivos, { emptyLabel: 'Motivo: Todos', emptyValue: 'Todos' });
+        setOptions(filtroEvento, eventos, { emptyLabel: 'Evento: Todos', emptyValue: 'Todos' });
+        filtroEvento.insertAdjacentHTML('beforeend', '<option value="SIN_EVENTO">Sin evento</option>');
+    };
+
+    const resetFormulario = () => {
+        const formFields = [
+            'regNombre', 'regApellido', 'regCorreo', 'regContrasenaHash', 'regTelefono', 'regPaisCodigo',
+            'regFechaNacimiento', 'regNumeroDocumento', 'regTitulo', 'regDiscordUsuario', 'regFormName', 'regFormId'
+        ];
+        formFields.forEach((id) => {
+            const element = document.getElementById(id);
+            if (!element) return;
+            element.value = element.defaultValue || '';
+        });
+
+        document.querySelectorAll('#modalRegistro select').forEach((select) => {
+            if (select.options.length) select.value = select.options[0].value;
+        });
+
+        const selectDepartamento = document.getElementById('regDepartamento');
+        if (selectDepartamento) {
+            setMunicipiosPorDepartamento(selectDepartamento.value);
+        }
+    };
+
+    const abrirModal = (candidato = null) => {
+        editandoId = candidato?.id || null;
+        if (tituloModal) tituloModal.textContent = editandoId ? 'Editar Candidato' : 'Nuevo Candidato';
+        btnGuardar.textContent = editandoId ? 'Guardar Cambios' : 'Crear Candidato';
+
+        resetFormulario();
+        if (candidato) {
+            document.getElementById('regNombre').value = candidato.nombre_raw || candidato.nombre?.split(' ')[0] || '';
+            document.getElementById('regApellido').value = candidato.apellido || candidato.nombre?.split(' ').slice(1).join(' ') || '';
+            document.getElementById('regCorreo').value = candidato.correo || '';
+            document.getElementById('regContrasenaHash').value = candidato.contrasena_hash || 'hash_prueba_ui';
+            document.getElementById('regTelefono').value = candidato.telefono || candidato.tel || '';
+            document.getElementById('regPaisCodigo').value = candidato.pais_codigo || '+57';
+            document.getElementById('regFechaNacimiento').value = candidato.fecha_nacimiento || '';
+            document.getElementById('regNumeroDocumento').value = candidato.numero_documento || candidato.cedula || '';
+            document.getElementById('regTitulo').value = candidato.titulo || '';
+            document.getElementById('regDiscordUsuario').value = candidato.discord_usuario || '';
+            document.getElementById('regFormName').value = candidato.form_name || 'Form Coders Test';
+            document.getElementById('regFormId').value = candidato.form_id || '';
+
+            const setSelectValue = (id, value) => {
+                const select = document.getElementById(id);
+                if (select && value !== null && value !== undefined) select.value = String(value);
+            };
+
+            setSelectValue('regTipoDocumento', candidato.tipo_documento_id);
+            setSelectValue('regGenero', candidato.genero_id);
+            setSelectValue('regTipoConvenio', candidato.tipo_convenio_id);
+            setSelectValue('regDepartamento', candidato.departamento_id);
+            setMunicipiosPorDepartamento(candidato.departamento_id, candidato.municipio_id);
+            setSelectValue('regSedeInteres', candidato.sede_interes_id);
+            setSelectValue('regEstrato', candidato.estrato_id);
+            setSelectValue('regHorario', candidato.horario_id);
+            setSelectValue('regMedioComunicacion', candidato.medio_comunicacion_id);
+            setSelectValue('regNivelEducativo', candidato.nivel_educativo_id);
+            setSelectValue('regConocimientoProgramacion', candidato.conocimiento_programacion_id);
+            setSelectValue('regOcupacion', candidato.ocupacion_id);
+            setSelectValue('regMotivoLlamada', candidato.motivo_llamada_id);
+            setSelectValue('regEstadoGestion', candidato.estado_gestion_id);
+            setSelectValue('regEventoAsignado', candidato.evento_asignado_id || '');
+            setSelectValue('regFaseActual', candidato.fase_actual || 'PRUEBA_LOGICA');
+        }
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    };
+
+    const cerrarModal = () => {
+        editandoId = null;
         modal.classList.add('hidden');
         modal.classList.remove('flex');
-        editandoIndex = null;
-        document.querySelector('#modalRegistro h2').innerText = "Nuevo Candidato";
-        document.getElementById('btnGuardar').innerText = "Crear Candidato";
-        document.querySelectorAll('#modalRegistro input, #modalRegistro select').forEach(el => { el.value = el.defaultValue || (el.tagName === 'SELECT' ? el.options[0].value : ''); });
     };
 
-    inputBusqueda.addEventListener('input', filtrar);
-    selectEstado.addEventListener('change', filtrar);
-    selectGenero.addEventListener('change', filtrar);
-
-    document.getElementById('btnNuevoCandidato').onclick = () => { cerrar(); modal.classList.remove('hidden'); modal.classList.add('flex'); };
-    document.getElementById('btnCancelar').onclick = cerrar;
-    document.getElementById('btnCerrarX').onclick = cerrar;
-
-    document.getElementById('btnGuardar').onclick = () => {
-        const nuevo = {
-            nombre: document.getElementById('regNombre').value + " " + document.getElementById('regApellido').value,
-            cedula: document.getElementById('regCedula').value,
-            edad: document.getElementById('regEdad').value,
-            genero: document.getElementById('regGenero').value,
-            tel: document.getElementById('regTel').value,
-            municipio: document.getElementById('regMunicipio').value,
-            educacion: document.getElementById('regEducacion').value,
-            programacion: document.getElementById('regProgramacion').value,
-            jornada: document.getElementById('regJornada').value,
-            estado: document.getElementById('regEstado').value
+    const construirPayload = () => {
+        const payload = {
+            nombre: sanitize(document.getElementById('regNombre')?.value),
+            apellido: sanitize(document.getElementById('regApellido')?.value),
+            correo: sanitize(document.getElementById('regCorreo')?.value),
+            contrasena_hash: sanitize(document.getElementById('regContrasenaHash')?.value),
+            telefono: sanitize(document.getElementById('regTelefono')?.value),
+            pais_codigo: sanitize(document.getElementById('regPaisCodigo')?.value) || '+57',
+            fecha_nacimiento: sanitize(document.getElementById('regFechaNacimiento')?.value),
+            tipo_documento_id: toIntOrNull(document.getElementById('regTipoDocumento')?.value),
+            numero_documento: sanitize(document.getElementById('regNumeroDocumento')?.value),
+            genero_id: toIntOrNull(document.getElementById('regGenero')?.value),
+            tipo_convenio_id: toIntOrNull(document.getElementById('regTipoConvenio')?.value),
+            departamento_id: toIntOrNull(document.getElementById('regDepartamento')?.value),
+            municipio_id: toIntOrNull(document.getElementById('regMunicipio')?.value),
+            sede_interes_id: toIntOrNull(document.getElementById('regSedeInteres')?.value),
+            estrato_id: toIntOrNull(document.getElementById('regEstrato')?.value),
+            horario_id: toIntOrNull(document.getElementById('regHorario')?.value),
+            medio_comunicacion_id: toIntOrNull(document.getElementById('regMedioComunicacion')?.value),
+            nivel_educativo_id: toIntOrNull(document.getElementById('regNivelEducativo')?.value),
+            titulo: sanitize(document.getElementById('regTitulo')?.value) || null,
+            conocimiento_programacion_id: toIntOrNull(document.getElementById('regConocimientoProgramacion')?.value),
+            ocupacion_id: toIntOrNull(document.getElementById('regOcupacion')?.value),
+            motivo_llamada_id: toIntOrNull(document.getElementById('regMotivoLlamada')?.value),
+            estado_gestion_id: toIntOrNull(document.getElementById('regEstadoGestion')?.value),
+            evento_asignado_id: toIntOrNull(document.getElementById('regEventoAsignado')?.value),
+            fase_actual: sanitize(document.getElementById('regFaseActual')?.value) || 'PRUEBA_LOGICA',
+            discord_usuario: sanitize(document.getElementById('regDiscordUsuario')?.value) || null,
+            form_name: sanitize(document.getElementById('regFormName')?.value) || null,
+            form_id: sanitize(document.getElementById('regFormId')?.value) || null
         };
 
-    if (nuevo.nombre.trim() && nuevo.cedula) {
-        if (editandoIndex !== null) { listaOriginal[editandoIndex] = nuevo; alert("¡Candidato actualizado!"); } else { listaOriginal.unshift(nuevo); alert("¡Candidato creado!"); }
-        guardarEnLocal(); filtrar(); cerrar();
-    } else { alert("El nombre y la cédula son obligatorios."); }
+        const required = [
+            'nombre', 'apellido', 'correo', 'contrasena_hash', 'telefono', 'fecha_nacimiento', 'numero_documento'
+        ];
+        const missingString = required.filter((key) => !payload[key]);
+        const requiredIds = [
+            'tipo_documento_id', 'genero_id', 'tipo_convenio_id', 'departamento_id', 'municipio_id',
+            'sede_interes_id', 'estrato_id', 'horario_id', 'medio_comunicacion_id', 'estado_gestion_id'
+        ];
+        const missingIds = requiredIds.filter((key) => !payload[key]);
+
+        if (missingString.length || missingIds.length) {
+            throw new Error('Completa todos los campos obligatorios del candidato.');
+        }
+
+        return payload;
     };
 
-    btnDropdown.onclick = (e) => { e.stopPropagation(); menuImportar.classList.toggle('hidden'); };
-    document.addEventListener('click', () => menuImportar.classList.add('hidden'));
-    optExcel.onclick = () => inputFile.click();
+    const recargarDesdeSupabase = async () => {
+        const [candidatos, nuevosCatalogos] = await Promise.all([
+            syncCandidatosFromSupabase(),
+            getCandidatosCatalogos()
+        ]);
 
-    inputFile.onchange = (e) => {
-        const archivo = e.target.files[0];
-        if (!archivo) return;
-        const reader = new FileReader();
-        reader.onload = (evt) => {
-            try {
-                const data = evt.target.result;
-                const workbook = XLSX.read(data, { type: 'array' });
-                const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                const datosCrudos = XLSX.utils.sheet_to_json(sheet);
+        if (Array.isArray(candidatos)) {
+            listaOriginal = candidatos;
+            guardarEnLocal();
+        }
 
-                const normalizarEstado = (v) => {
-                    if (v === undefined || v === null) return '';
-                    const s = String(v).trim();
-                    if (!s) return '';
-                    const lower = s.toLowerCase();
-                    if (lower.includes('inscr')) return 'Inscrito';
-                    if (lower.includes('llam')) return 'Llamar';
-                    if (lower.includes('proceso')) return 'En proceso';
-                    if (lower.includes('admit')) return 'Admitido';
-                    if (lower.includes('no') && lower.includes('interes')) return 'No Interesado';
-                    return s.charAt(0).toUpperCase() + s.slice(1);
-                };
+        if (nuevosCatalogos) {
+            catalogos = nuevosCatalogos;
+            poblarSelectsFormulario();
+            poblarFiltros();
+        }
 
-                const nuevos = datosCrudos.map(fila => ({
-                    nombre: fila.Nombre || fila.nombre || "Sin nombre",
-                    cedula: String(fila.Cedula || fila.cedula || "0"),
-                    edad: fila.Edad || fila.edad || 18,
-                    genero: fila.Genero || fila.genero || "Otro",
-                    tel: String(fila.Telefono || fila.telefono || ""),
-                    municipio: fila.Municipio || fila.municipio || "Medellín",
-                    educacion: fila.Educacion || "Bachiller",
-                    programacion: fila.Programacion || "Ninguno",
-                    jornada: fila.Jornada || "Mañana",
-                    estado: normalizarEstado(fila.Estado || fila.estado || fila['Estado_final'] || fila['Estado Final'] || fila['estado_final'])
-                }));
-
-                listaOriginal = [...nuevos, ...listaOriginal];
-                guardarEnLocal();
-                filtrar();
-                alert(`Importados ${nuevos.length} candidatos.`);
-            } catch (err) { alert("Error con el Excel"); }
-        };
-        reader.readAsArrayBuffer(archivo);
-        e.target.value = "";
+        filtrar();
     };
 
-    optDatabase.onclick = () => { modalDB.classList.remove('hidden'); modalDB.classList.add('flex'); };
-    const cerrarDB = () => { modalDB.classList.add('hidden'); modalDB.classList.remove('flex'); };
-    document.getElementById('btnCerrarDB').onclick = cerrarDB;
-    document.getElementById('btnCancelarDB').onclick = cerrarDB;
+    // Cargar fallback desde el SQL de ejemplo si existe en el servidor de desarrollo
+    async function loadFallbackFromSql() {
+        try {
+            const url = '/datos%20insertados.txt';
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('No se pudo descargar datos de respaldo.');
+            const txt = await res.text();
 
-    const dbUrlInput = document.getElementById('dbUrl');
-    const dbAnonKeyInput = document.getElementById('dbAnonKey');
-    const connection = getSupabaseConnectionConfig();
+            // Parsear mapas simples: tipos_documento, generos, motivos_llamada, estados_gestion
+            const parseSimpleMap = (tableName) => {
+                const re = new RegExp(`INSERT INTO\\s+${tableName}\\s*\\([^)]*\\)\\s*VALUES([\s\S]*?);`, 'i');
+                const m = txt.match(re);
+                const out = {};
+                if (!m) return out;
+                const valuesBlock = m[1];
+                const tupleRe = /\('([^']*)'\s*,\s*'([^']*)'\)/g;
+                let t;
+                while ((t = tupleRe.exec(valuesBlock)) !== null) {
+                    out[t[1]] = t[2];
+                }
+                return out;
+            };
 
-    if (dbUrlInput) {
-        dbUrlInput.value = connection.supabaseUrl || '/.netlify/edge-functions/supabase-proxy';
+            const tiposDocumentoMap = parseSimpleMap('tipos_documento');
+            const generosMap = parseSimpleMap('generos');
+            const motivosMap = parseSimpleMap('motivos_llamada');
+            const estadosMap = parseSimpleMap('estados_gestion');
+
+            // Buscar los bloques VALUES de candidatos
+            const candRe = /INSERT INTO\s+candidatos[\s\S]*?VALUES([\s\S]*?);/i;
+            const candMatch = txt.match(candRe);
+            if (!candMatch) return [];
+            const vals = candMatch[1];
+
+            // Separar cada tupla de candidato. Asumimos que las tuplas están separadas por),\n( o),\n( con estructura simple
+            const tuples = [];
+            let depth = 0;
+            let current = '';
+            for (let i = 0; i < vals.length; i++) {
+                const ch = vals[i];
+                current += ch;
+                if (ch === '(') depth++;
+                if (ch === ')') depth--;
+                // cuando depth === 0, posible fin de tupla
+                if (depth === 0 && /\)\s*,?\s*$/m.test(current)) {
+                    tuples.push(current.trim().replace(/^,?\s*/, '').replace(/,?\s*$/,''));
+                    current = '';
+                }
+            }
+
+            // Helper para obtener tokens (SELECT 'CODE' or 'string' or NULL)
+            const tokenRe = /(SELECT[^']*'([^']+)'[^)]*\))|'([^']*)'|\bNULL\b/gi;
+            const outCandidates = [];
+            const uuidv4 = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) { const r = Math.random() * 16 | 0; const v = (c === 'x' ? r : (r & 0x3 | 0x8)); return v.toString(16); });
+
+            tuples.forEach(tupleText => {
+                const tokens = [];
+                let m;
+                while ((m = tokenRe.exec(tupleText)) !== null) {
+                    if (m[2]) tokens.push({type:'select', value:m[2]});
+                    else if (m[3] !== undefined) tokens.push({type:'string', value:m[3]});
+                    else tokens.push({type:'null', value:null});
+                }
+
+                // Columnas según el script: nombre, apellido, correo, contrasena_hash, telefono, fecha_nacimiento, tipo_documento_id, numero_documento, genero_id, tipo_convenio_id, departamento_id, municipio_id, sede_interes_id, estrato_id, horario_id, medio_comunicacion_id, nivel_educativo_id, titulo, conocimiento_programacion_id, ocupacion_id, motivo_llamada_id, estado_gestion_id, form_name, form_id
+                // Tomaremos las posiciones que nos interesan
+                const c = {};
+                const get = (idx) => tokens[idx] ? tokens[idx].value : null;
+                c.nombre = get(0) || '';
+                c.apellido = get(1) || '';
+                c.correo = get(2) || '';
+                c.contrasena_hash = get(3) || '';
+                c.telefono = get(4) || '';
+                c.fecha_nacimiento = get(5) || '';
+                // tipo_documento: token may be 'CC' from SELECT
+                const tipoDocCode = get(6) || '';
+                c.tipo_documento = tiposDocumentoMap[tipoDocCode] || tipoDocCode || '';
+                c.numero_documento = get(7) || '';
+                const generoCode = get(8) || '';
+                c.genero = generosMap[generoCode] || generoCode || '';
+                // skip many ids, get motivo and estado codes
+                const motivoCode = get(18) || '';
+                c.motivo_llamada = motivosMap[motivoCode] || motivoCode || '';
+                const estadoCode = get(19) || '';
+                c.estado_gestion = estadosMap[estadoCode] || estadoCode || '';
+
+                // edad calculada
+                c.edad = c.fecha_nacimiento ? Math.max(0, Math.floor((Date.now() - new Date(c.fecha_nacimiento).getTime()) / (1000*60*60*24*365.25))) : '';
+                c.nombre = [c.nombre, c.apellido].filter(Boolean).join(' ').trim() || 'Sin nombre';
+                c.id = uuidv4();
+                outCandidates.push(c);
+            });
+
+            return outCandidates;
+        } catch (e) {
+            console.warn('Error parseando fallback SQL:', e);
+            return [];
+        }
     }
 
-    btnSincronizar.onclick = async () => {
-        btnSincronizar.disabled = true;
-        try {
-            const inputUrl = String(dbUrlInput?.value || '').trim();
-            const inputAnonKey = String(dbAnonKeyInput?.value || '').trim();
-            const wantsDirectSupabase = /\.supabase\.co\/?$/i.test(inputUrl);
-            const options = {};
+    inputBusqueda?.addEventListener('input', filtrar);
+    filtroEstado?.addEventListener('change', filtrar);
+    filtroMotivo?.addEventListener('change', filtrar);
+    filtroEvento?.addEventListener('change', filtrar);
 
-            if (wantsDirectSupabase) {
-                options.preferDirect = true;
-                options.supabaseUrl = inputUrl;
-                if (inputAnonKey) {
-                    options.supabaseAnonKey = inputAnonKey;
+    document.getElementById('btnNuevoCandidato')?.addEventListener('click', () => abrirModal());
+
+    const btnLlamarTodos = document.getElementById('btnLlamarTodos');
+    if (btnLlamarTodos && !btnLlamarTodos.dataset.listening) {
+        btnLlamarTodos.dataset.listening = 'true';
+        btnLlamarTodos.addEventListener('click', async () => {
+            if (!confirm(`¿Estás seguro de que deseas iniciar el proceso de llamadas masivas para la franja 'mañana'?`)) return;
+
+            const btn = btnLlamarTodos;
+            btn.disabled = true;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<i data-lucide="loader" class="w-5 h-5 animate-spin"></i> Iniciando...`;
+            if (window.lucide) window.lucide.createIcons();
+
+            try {
+                const response = await fetch('/api/admin/run-now', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ "forceMove": true, "franja": "manana", "limit": 1000 })
+                });
+
+                if (!response.ok) {
+                    const detail = await response.text();
+                    throw new Error(`Error ${response.status}: ${detail || 'No se pudo iniciar la campaña.'}`);
                 }
-                configureSupabaseConnection(options);
-            }
 
-            const data = await syncCandidatosFromSupabase(options);
-            if (Array.isArray(data)) {
-                listaOriginal = data;
-                guardarEnLocal();
-                filtrar();
-                alert("Sincronizado");
-                cerrarDB();
+                const result = await response.json();
+                console.info('Resultado llamada masiva:', result);
+                alert(`Proceso de llamadas masivas iniciado correctamente.\nRespuesta del servidor: ${JSON.stringify(result)}`);
+
+            } catch (error) {
+                alert('Error al iniciar llamadas masivas: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                if (window.lucide) window.lucide.createIcons();
+            }
+        });
+    }
+
+    document.getElementById('btnCancelar')?.addEventListener('click', cerrarModal);
+    document.getElementById('btnCerrarX')?.addEventListener('click', cerrarModal);
+
+    btnGuardar.addEventListener('click', async () => {
+        btnGuardar.disabled = true;
+        try {
+            const payload = construirPayload();
+            if (editandoId) {
+                await updateCandidatoInSupabase(editandoId, payload);
+                alert('Candidato actualizado correctamente.');
             } else {
-                alert("La respuesta no tiene formato válido.");
+                await createCandidatoInSupabase(payload);
+                alert('Candidato creado correctamente.');
             }
-        } catch (e) { alert(e?.message || "Error de conexión"); }
-        finally { btnSincronizar.disabled = false; }
-    };
+            await recargarDesdeSupabase();
+            cerrarModal();
+        } catch (error) {
+            alert(error?.message || 'No fue posible guardar el candidato.');
+        } finally {
+            btnGuardar.disabled = false;
+        }
+    });
 
-    // ejecución inicial
-    actualizarTabla(listaOriginal);
+    tbody.addEventListener('click', async (event) => {
+        const btnEditar = event.target.closest('.btn-editar');
+        const btnLlamar = event.target.closest('.btn-llamar');
+        const btnEliminar = event.target.closest('.btn-eliminar');
+        const id = btnEditar?.dataset.id || btnLlamar?.dataset.id || btnEliminar?.dataset.id;
+        const candidato = obtenerCandidato(id);
+
+        if (btnEditar) {
+            if (!candidato) return alert('No se encontro el candidato seleccionado.');
+            return abrirModal(candidato);
+        }
+
+        if (btnLlamar) {
+            if (!candidato?.id) return alert('Este candidato no tiene ID de base de datos para llamar.');
+            try {
+                const response = await fetch(CALL_CANDIDATE_ENDPOINT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ candidato_id: candidato.id, force: true })
+                });
+                if (!response.ok) {
+                    const detail = await response.text();
+                    throw new Error(`Error ${response.status}: ${detail || 'No se pudo iniciar la llamada.'}`);
+                }
+                alert(`Llamada disparada para ${candidato.nombre}.`);
+            } catch (error) {
+                alert(error?.message || 'No fue posible llamar al candidato.');
+            }
+            return;
+        }
+
+        if (btnEliminar) {
+            if (!candidato?.id) return alert('No se puede eliminar: el candidato no tiene ID de base de datos.');
+            if (!confirm(`¿Seguro que deseas eliminar a ${candidato.nombre}?`)) return;
+
+            try {
+                await deleteCandidatoInSupabase(candidato.id);
+                await recargarDesdeSupabase();
+                alert('Candidato eliminado correctamente.');
+            } catch (error) {
+                alert(error?.message || 'No fue posible eliminar el candidato.');
+            }
+        }
+    });
+
+    // Render inmediato con cache local para no dejar la tabla en blanco.
+    filtrar();
+
+    recargarDesdeSupabase().catch((error) => {
+        console.warn('No fue posible sincronizar candidatos desde Supabase:', error);
+        (async () => {
+            try {
+                // si no hay datos locales, intentar cargar fallback desde el archivo SQL incluido
+                const local = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+                if (!local || !local.length) {
+                    const parsed = await loadFallbackFromSql();
+                    if (Array.isArray(parsed) && parsed.length) {
+                        listaOriginal = parsed;
+                        guardarEnLocal();
+                    }
+                }
+            } catch (e) { /* ignore */ }
+
+            try { poblarFiltrosDesdeLocal(); } catch (e) { /* ignore */ }
+            alert('No se pudo sincronizar con la base de datos. Se muestran datos locales si existen.');
+        })();
+    });
 }

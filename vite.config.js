@@ -40,7 +40,15 @@ export default defineConfig(({ mode }) => {
 
     return {
         server: {
-            port: 5173
+            port: 5173,
+            proxy: {
+                '/api': {
+                    target: 'https://sofia-voice.onrender.com',
+                    changeOrigin: true,
+                    rewrite: (path) => path.replace(/^\/api/, ''),
+                    secure: false,
+                }
+            }
         },
         plugins: [
             {

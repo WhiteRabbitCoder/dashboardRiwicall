@@ -42,6 +42,11 @@ const isValidSupabaseUrl = (value) => {
 export default async (request) => {
     const requestUrl = new URL(request.url);
     const table = requestUrl.searchParams.get('table') || 'candidatos';
+    const method = request.method.toUpperCase();
+
+    if (!['GET', 'POST', 'PATCH', 'DELETE'].includes(method)) {
+        return json({ error: 'Metodo no permitido.' }, 405);
+    }
 
     if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(table)) {
         return json({ error: 'Nombre de tabla inválido.' }, 400);
@@ -62,14 +67,32 @@ export default async (request) => {
     }
 
     const baseUrl = SUPABASE_URL.endsWith('/') ? SUPABASE_URL.slice(0, -1) : SUPABASE_URL;
-    const supabaseEndpoint = `${baseUrl}/rest/v1/${table}?select=*`;
+    const proxiedParams = new URLSearchParams(requestUrl.searchParams);
+    proxiedParams.delete('table');
+
+    if (!proxiedParams.has('select')) {
+        proxiedParams.set('select', '*');
+    }
+
+    const queryString = proxiedParams.toString();
+    const supabaseEndpoint = `${baseUrl}/rest/v1/${table}${queryString ? `?${queryString}` : ''}`;
     const headers = { 'Content-Type': 'application/json' };
 
     headers.apikey = SUPABASE_SERVICE_ROLE;
     headers.Authorization = `Bearer ${SUPABASE_SERVICE_ROLE}`;
 
     try {
-        const response = await fetch(supabaseEndpoint, { headers });
+        const fetchOptions = { method, headers };
+
+        if (method !== 'GET' && method !== 'HEAD') {
+            const rawBody = await request.text();
+            if (rawBody) {
+                fetchOptions.body = rawBody;
+            }
+            headers.Prefer = 'return=representation';
+        }
+
+        const response = await fetch(supabaseEndpoint, fetchOptions);
         const data = await response.json();
 
         if (!response.ok) {
