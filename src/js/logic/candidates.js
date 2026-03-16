@@ -10,6 +10,7 @@ const STORAGE_KEY = 'candidatos_riwicalls';
 const CALL_CANDIDATE_ENDPOINT = '/api/calls/candidate';
 
 const toIntOrNull = (value) => {
+    if (value === '' || value === null || value === undefined) return null;
     const n = Number(value);
     return Number.isInteger(n) ? n : null;
 };
@@ -506,7 +507,13 @@ export function initCandidatesView() {
             await recargarDesdeSupabase();
             cerrarModal();
         } catch (error) {
-            alert(error?.message || 'No fue posible guardar el candidato.');
+            let msg = error?.message || 'No fue posible guardar el candidato.';
+            if (msg.includes('candidatos_correo_key')) {
+                msg = 'El correo electrónico ingresado ya pertenece a otro candidato. Por favor utiliza uno diferente.';
+            } else if (msg.includes('candidatos_numero_documento_key')) {
+                msg = 'El número de documento ingresado ya está registrado para otro candidato.';
+            }
+            alert(msg);
         } finally {
             btnGuardar.disabled = false;
         }
