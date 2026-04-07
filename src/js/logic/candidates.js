@@ -293,7 +293,6 @@ export function initCandidatesView() {
             apellido: sanitize(document.getElementById('regApellido')?.value),
             correo: sanitize(document.getElementById('regCorreo')?.value),
             telefono: telefonoConcatenado,
-            pais_codigo: paisCodigo,
             fecha_nacimiento: sanitize(document.getElementById('regFechaNacimiento')?.value),
             tipo_documento_id: toIntOrNull(document.getElementById('regTipoDocumento')?.value),
             numero_documento: sanitize(document.getElementById('regNumeroDocumento')?.value),

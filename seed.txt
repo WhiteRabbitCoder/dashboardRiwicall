@@ -1,0 +1,250 @@
+-- ============================================================
+-- Datos de prueba — ejecutar en Supabase → SQL Editor
+-- ============================================================
+
+-- ── Catálogos base ────────────────────────────────────────────
+
+INSERT INTO tipos_documento (codigo, descripcion) VALUES
+  ('CC',  'Cédula de ciudadanía'),
+  ('CE',  'Cédula de extranjería'),
+  ('TI',  'Tarjeta de identidad')
+ON CONFLICT (codigo) DO NOTHING;
+
+INSERT INTO generos (codigo, descripcion) VALUES
+  ('M',  'Masculino'),
+  ('F',  'Femenino'),
+  ('NB', 'No binario')
+ON CONFLICT (codigo) DO NOTHING;
+
+-- Solo dos sedes reales
+INSERT INTO sedes (codigo, nombre) VALUES
+  ('MED', 'Medellín'),
+  ('BAQ', 'Barranquilla')
+ON CONFLICT (codigo) DO NOTHING;
+
+INSERT INTO tipos_reunion (codigo, descripcion) VALUES
+  ('PRUEBA_LOGICA',          'Prueba lógica'),
+  ('ENTREVISTA',             'Entrevista'),
+  ('BIENVENIDA',             'Bienvenida'),
+  ('PRESENTACION_PROYECTOS', 'Presentación de proyectos')
+ON CONFLICT (codigo) DO NOTHING;
+
+INSERT INTO estados_gestion (codigo, descripcion) VALUES
+  ('PENDIENTE',         'En proceso de contacto'),
+  ('AGENDADO',          'Cita confirmada'),
+  ('NO_INTERESADO',     'Descartó la convocatoria'),
+  ('NUMERO_INCORRECTO', 'Número no corresponde'),
+  ('DESCARTADO',        'Proceso cerrado')
+ON CONFLICT (codigo) DO NOTHING;
+
+INSERT INTO resultados_llamada (codigo, descripcion) VALUES
+  ('AGENDADO',            'Candidato agendó exitosamente'),
+  ('PENDIENTE',           'No se pudo contactar, se reintentará'),
+  ('NO_INTERESADO',       'Candidato descartó la convocatoria'),
+  ('NUMERO_INCORRECTO',   'El número no corresponde al candidato'),
+  ('BUZON_VOZ',           'Llamada fue al buzón de voz'),
+  ('REPROGRAMADO_FRANJA', 'Candidato pidió ser llamado en otra franja')
+ON CONFLICT (codigo) DO NOTHING;
+
+-- Departamentos reales de residencia (independiente de la sede de interés)
+INSERT INTO departamentos (codigo, nombre) VALUES
+  ('ANT', 'Antioquia'),
+  ('ATL', 'Atlántico'),
+  ('CUN', 'Cundinamarca'),
+  ('VAC', 'Valle del Cauca')
+ON CONFLICT (codigo) DO NOTHING;
+
+INSERT INTO municipios (departamento_id, nombre) VALUES
+  ((SELECT id FROM departamentos WHERE codigo = 'ANT'), 'Medellín'),
+  ((SELECT id FROM departamentos WHERE codigo = 'ANT'), 'Bello'),
+  ((SELECT id FROM departamentos WHERE codigo = 'ATL'), 'Barranquilla'),
+  ((SELECT id FROM departamentos WHERE codigo = 'CUN'), 'Bogotá'),
+  ((SELECT id FROM departamentos WHERE codigo = 'VAC'), 'Cali');
+
+INSERT INTO estratos (valor) VALUES (1),(2),(3),(4),(5),(6)
+ON CONFLICT (valor) DO NOTHING;
+
+INSERT INTO niveles_educativos (codigo, descripcion, orden) VALUES
+  ('BACHILLER',   'Bachiller',   1),
+  ('TECNICO',     'Técnico',     2),
+  ('TECNOLOGO',   'Tecnólogo',   3),
+  ('PROFESIONAL', 'Profesional', 4),
+  ('POSGRADO',    'Posgrado',    5)
+ON CONFLICT (codigo) DO NOTHING;
+
+INSERT INTO conocimientos_programacion (codigo, descripcion, nivel) VALUES
+  ('NINGUNO', 'Sin conocimientos',     0),
+  ('BASICO',  'Conocimientos básicos', 1),
+  ('MEDIO',   'Nivel intermedio',      2),
+  ('AVANZADO','Nivel avanzado',        3)
+ON CONFLICT (codigo) DO NOTHING;
+
+INSERT INTO ocupaciones (codigo, descripcion) VALUES
+  ('ESTUDIANTE',   'Estudiante'),
+  ('EMPLEADO',     'Empleado'),
+  ('INDEPENDIENTE','Independiente'),
+  ('DESEMPLEADO',  'Desempleado')
+ON CONFLICT (codigo) DO NOTHING;
+
+INSERT INTO tipos_convenio (codigo, descripcion) VALUES
+  ('REGULAR',  'Convenio regular'),
+  ('ESPECIAL', 'Convenio especial'),
+  ('BECA',     'Beca')
+ON CONFLICT (codigo) DO NOTHING;
+
+INSERT INTO medios_comunicacion (codigo, descripcion) VALUES
+  ('WHATSAPP', 'WhatsApp'),
+  ('LLAMADA',  'Llamada telefónica'),
+  ('EMAIL',    'Correo electrónico')
+ON CONFLICT (codigo) DO NOTHING;
+
+INSERT INTO horarios (codigo, descripcion, hora_inicio, hora_fin) VALUES
+  ('MANANA', 'Jornada mañana', '08:00', '12:00'),
+  ('TARDE',  'Jornada tarde',  '12:00', '16:00'),
+  ('NOCHE',  'Jornada noche',  '16:00', '20:00')
+ON CONFLICT (codigo) DO NOTHING;
+
+
+-- ── Eventos de prueba en las dos sedes ───────────────────────
+
+INSERT INTO eventos (tipo_reunion_id, sede_id, fecha_hora, capacidad_total, estado, descripcion) VALUES
+  (
+    (SELECT id FROM tipos_reunion WHERE codigo = 'PRUEBA_LOGICA'),
+    (SELECT id FROM sedes WHERE codigo = 'MED'),
+    NOW() + INTERVAL '2 days' + TIME '08:00',
+    30, 'DISPONIBLE', 'Prueba lógica Medellín - Mañana'
+  ),
+  (
+    (SELECT id FROM tipos_reunion WHERE codigo = 'PRUEBA_LOGICA'),
+    (SELECT id FROM sedes WHERE codigo = 'MED'),
+    NOW() + INTERVAL '3 days' + TIME '14:00',
+    30, 'DISPONIBLE', 'Prueba lógica Medellín - Tarde'
+  ),
+  (
+    (SELECT id FROM tipos_reunion WHERE codigo = 'PRUEBA_LOGICA'),
+    (SELECT id FROM sedes WHERE codigo = 'MED'),
+    NOW() + INTERVAL '4 days' + TIME '18:00',
+    30, 'DISPONIBLE', 'Prueba lógica Medellín - Noche'
+  ),
+  (
+    (SELECT id FROM tipos_reunion WHERE codigo = 'PRUEBA_LOGICA'),
+    (SELECT id FROM sedes WHERE codigo = 'BAQ'),
+    NOW() + INTERVAL '2 days' + TIME '09:00',
+    25, 'DISPONIBLE', 'Prueba lógica Barranquilla - Mañana'
+  ),
+  (
+    (SELECT id FROM tipos_reunion WHERE codigo = 'PRUEBA_LOGICA'),
+    (SELECT id FROM sedes WHERE codigo = 'BAQ'),
+    NOW() + INTERVAL '3 days' + TIME '15:00',
+    25, 'DISPONIBLE', 'Prueba lógica Barranquilla - Tarde'
+  );
+
+
+-- ── Candidatos ────────────────────────────────────────────────
+
+INSERT INTO candidatos (id, nombre, apellido, correo, telefono, fecha_nacimiento, tipo_documento_id, numero_documento, genero_id) VALUES
+  (
+    '0dd9d7da-525f-44ad-997a-8e52103b765b',
+    'Maryhug', 'Duran', 'maryhug@gmail.com',
+    '+573112790495', '1998-04-15',
+    (SELECT id FROM tipos_documento WHERE codigo = 'CC'), '1000111222',
+    (SELECT id FROM generos WHERE codigo = 'F')
+  ),
+  (
+    '11111111-1111-1111-1111-111111111111',
+    'Emmanuel', 'Arango', 'emmanuel@gmail.com',
+    '+573193696490','1999-05-14',
+    (SELECT id FROM tipos_documento WHERE codigo = 'CC'), '2000222333',
+    (SELECT id FROM generos WHERE codigo = 'M')
+  ),
+  (
+    '22222222-2222-2222-2222-222222222222',
+    'Daniela', 'Garcia', 'daniela@gmail.com',
+    '+573185926525','1996-11-02',
+    (SELECT id FROM tipos_documento WHERE codigo = 'CC'), '2000333444',
+    (SELECT id FROM generos WHERE codigo = 'F')
+  ),
+  (
+    'a09e8dc8-5229-43af-86e4-1aab64ba9be8',
+    'Angelo', 'Gaviria', 'angelo@hotmail.com',
+    '+5731475732050','2001-08-22',
+    (SELECT id FROM tipos_documento WHERE codigo = 'CC'), '1000333444',
+    (SELECT id FROM generos WHERE codigo = 'M')
+  )
+ON CONFLICT (id) DO NOTHING;
+
+
+-- ── Ubicación
+-- Viven donde viven, pero sede_interes = MED para todos
+-- El dispatcher usará sede_interes para filtrar eventos, no donde viven
+
+INSERT INTO candidato_ubicacion (candidato_id, departamento_id, municipio_id, sede_interes_id, estrato_id) VALUES
+  (
+    '0dd9d7da-525f-44ad-997a-8e52103b765b',
+    (SELECT id FROM departamentos WHERE codigo = 'ANT'),
+    (SELECT id FROM municipios WHERE nombre = 'Medellín'),
+    (SELECT id FROM sedes WHERE codigo = 'MED'),
+    (SELECT id FROM estratos WHERE valor = 3)
+  ),
+  (
+    '11111111-1111-1111-1111-111111111111',
+    (SELECT id FROM departamentos WHERE codigo = 'ANT'),
+    (SELECT id FROM municipios WHERE nombre = 'Bello'),
+    (SELECT id FROM sedes WHERE codigo = 'MED'),  -- vive en Bello, sede MED
+    (SELECT id FROM estratos WHERE valor = 3)
+  ),
+  (
+    '22222222-2222-2222-2222-222222222222',
+    (SELECT id FROM departamentos WHERE codigo = 'CUN'),
+    (SELECT id FROM municipios WHERE nombre = 'Bogotá'),
+    (SELECT id FROM sedes WHERE codigo = 'MED'),  -- vive en Bogotá, sede MED
+    (SELECT id FROM estratos WHERE valor = 2)
+  ),
+  (
+    'a09e8dc8-5229-43af-86e4-1aab64ba9be8',
+    (SELECT id FROM departamentos WHERE codigo = 'VAC'),
+    (SELECT id FROM municipios WHERE nombre = 'Cali'),
+    (SELECT id FROM sedes WHERE codigo = 'MED'),  -- vive en Cali, sede MED
+    (SELECT id FROM estratos WHERE valor = 2)
+  )
+ON CONFLICT (candidato_id) DO NOTHING;
+
+
+-- ── Gestión (todos PENDIENTE) ─────────────────────────────────
+
+INSERT INTO candidato_gestion (candidato_id, estado_gestion_id, medio_comunicacion_id, intentos_llamada) VALUES
+  ('0dd9d7da-525f-44ad-997a-8e52103b765b', (SELECT id FROM estados_gestion WHERE codigo = 'PENDIENTE'), (SELECT id FROM medios_comunicacion WHERE codigo = 'LLAMADA'), 0),
+  ('11111111-1111-1111-1111-111111111111', (SELECT id FROM estados_gestion WHERE codigo = 'PENDIENTE'), (SELECT id FROM medios_comunicacion WHERE codigo = 'LLAMADA'), 0),
+  ('22222222-2222-2222-2222-222222222222', (SELECT id FROM estados_gestion WHERE codigo = 'PENDIENTE'), (SELECT id FROM medios_comunicacion WHERE codigo = 'LLAMADA'), 0),
+  ('a09e8dc8-5229-43af-86e4-1aab64ba9be8', (SELECT id FROM estados_gestion WHERE codigo = 'PENDIENTE'), (SELECT id FROM medios_comunicacion WHERE codigo = 'LLAMADA'), 0)
+ON CONFLICT (candidato_id) DO NOTHING;
+
+
+-- ── Perfil ────────────────────────────────────────────────────
+
+INSERT INTO candidato_perfil (candidato_id, nivel_educativo_id, titulo, conocimiento_prog_id, ocupacion_id, tipo_convenio_id) VALUES
+  ('0dd9d7da-525f-44ad-997a-8e52103b765b', (SELECT id FROM niveles_educativos WHERE codigo = 'PROFESIONAL'), 'Ingeniería de Sistemas',              (SELECT id FROM conocimientos_programacion WHERE codigo = 'MEDIO'),  (SELECT id FROM ocupaciones WHERE codigo = 'ESTUDIANTE'),  (SELECT id FROM tipos_convenio WHERE codigo = 'BECA')),
+  ('11111111-1111-1111-1111-111111111111', (SELECT id FROM niveles_educativos WHERE codigo = 'PROFESIONAL'), 'Ingeniería de Sistemas',              (SELECT id FROM conocimientos_programacion WHERE codigo = 'MEDIO'),  (SELECT id FROM ocupaciones WHERE codigo = 'ESTUDIANTE'),  (SELECT id FROM tipos_convenio WHERE codigo = 'REGULAR')),
+  ('22222222-2222-2222-2222-222222222222', (SELECT id FROM niveles_educativos WHERE codigo = 'PROFESIONAL'), 'Tecnología en Desarrollo de Software', (SELECT id FROM conocimientos_programacion WHERE codigo = 'MEDIO'),  (SELECT id FROM ocupaciones WHERE codigo = 'ESTUDIANTE'),  (SELECT id FROM tipos_convenio WHERE codigo = 'REGULAR')),
+  ('a09e8dc8-5229-43af-86e4-1aab64ba9be8', (SELECT id FROM niveles_educativos WHERE codigo = 'BACHILLER'),  NULL,                                  (SELECT id FROM conocimientos_programacion WHERE codigo = 'BASICO'), (SELECT id FROM ocupaciones WHERE codigo = 'DESEMPLEADO'), (SELECT id FROM tipos_convenio WHERE codigo = 'ESPECIAL'))
+ON CONFLICT (candidato_id) DO NOTHING;
+
+
+-- ── Fase actual (todos en Prueba lógica) ──────────────────────
+
+INSERT INTO candidato_fase (candidato_id, tipo_reunion_id) VALUES
+  ('0dd9d7da-525f-44ad-997a-8e52103b765b', (SELECT id FROM tipos_reunion WHERE codigo = 'PRUEBA_LOGICA')),
+  ('11111111-1111-1111-1111-111111111111', (SELECT id FROM tipos_reunion WHERE codigo = 'PRUEBA_LOGICA')),
+  ('22222222-2222-2222-2222-222222222222', (SELECT id FROM tipos_reunion WHERE codigo = 'PRUEBA_LOGICA')),
+  ('a09e8dc8-5229-43af-86e4-1aab64ba9be8', (SELECT id FROM tipos_reunion WHERE codigo = 'PRUEBA_LOGICA'))
+ON CONFLICT (candidato_id) DO NOTHING;
+
+
+-- ── Score candidato ideal ─────────────────────────────────────
+
+INSERT INTO candidato_ideal (candidato_id, ci_jornada, ci_edad, ci_ubicacion, ci_estudios, ci_estrato, ci_nivel_prog, ci_ocupacion, ci_total) VALUES
+  ('0dd9d7da-525f-44ad-997a-8e52103b765b', 2, 3, 2, 4, 2, 2, 2, 17),
+  ('11111111-1111-1111-1111-111111111111', 2, 3, 2, 4, 2, 2, 2, 17),
+  ('22222222-2222-2222-2222-222222222222', 2, 3, 2, 4, 3, 2, 2, 18),
+  ('a09e8dc8-5229-43af-86e4-1aab64ba9be8', 1, 2, 2, 1, 3, 1, 1, 11)
+ON CONFLICT (candidato_id) DO NOTHING;

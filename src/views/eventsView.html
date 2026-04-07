@@ -39,25 +39,22 @@
     
     <div style="margin-bottom: 20px;">
         <label style="display:block; font-weight:600; font-size:13px; margin-bottom:10px; color:#64748B;">Nombre del Evento</label>
-        <input type="text" id="evNombre" placeholder="Nombre del evento" style="width:100%; padding:14px 18px; border-radius:16px; border:1px solid #E2E8F0; outline:none; font-size: 15px; color: #1E293B;">
+        <input type="text" id="evNombre" placeholder="Descripción corta del evento" style="width:100%; padding:14px 18px; border-radius:16px; border:1px solid #E2E8F0; outline:none; font-size: 15px; color: #1E293B;">
     </div>
 
     <div style="display:flex; gap:16px; margin-bottom: 20px;">
         <div style="flex:1;">
-            <label style="display:block; font-weight:600; font-size:13px; margin-bottom:10px; color:#64748B;">Tipo</label>
+            <label style="display:block; font-weight:600; font-size:13px; margin-bottom:10px; color:#64748B;">Tipo de reunión</label>
             <select id="evTipo" style="width:100%; padding:14px; border-radius:16px; border:1px solid #E2E8F0; outline:none; background: #fff; font-size: 15px; cursor: pointer;">
-                <option value="Reunión">Reunión</option>
-                <option value="Entrevista">Entrevista</option>
-                <option value="Charla">Charla</option>
-                <option value="Prueba">Prueba</option>
+                <option value="">Cargando tipos...</option>
             </select>
         </div>
         <div style="flex:1;">
-            <label style="display:block; font-weight:600; font-size:13px; margin-bottom:10px; color:#64748B;">Estado</label>
+            <label style="display:block; font-weight:600; font-size:13px; margin-bottom:10px; color:#64748B;">Estado del evento</label>
             <select id="evEstado" style="width:100%; padding:14px; border-radius:16px; border:1px solid #E2E8F0; outline:none; background: #fff; font-size: 15px; cursor: pointer;">
                 <option value="Programado">Programado</option>
-                <option value="En curso">En curso</option>
                 <option value="Completado">Completado</option>
+                <option value="Cancelado">Cancelado</option>
             </select>
         </div>
     </div>
@@ -65,6 +62,13 @@
     <div style="margin-bottom: 20px;">
         <label style="display:block; font-weight:600; font-size:13px; margin-bottom:10px; color:#64748B;">Fecha y Hora</label>
         <input type="datetime-local" id="evFecha" style="width:100%; padding:14px 18px; border-radius:16px; border:1px solid #E2E8F0; outline:none; font-size: 15px; color: #1E293B;">
+    </div>
+
+    <div style="margin-bottom: 20px;">
+        <label style="display:block; font-weight:600; font-size:13px; margin-bottom:10px; color:#64748B;">Sede</label>
+        <select id="evSede" style="width:100%; padding:14px; border-radius:16px; border:1px solid #E2E8F0; outline:none; background:#fff; font-size:15px; cursor:pointer;">
+            <option value="">Cargando sedes...</option>
+        </select>
     </div>
 
     <div style="margin-bottom: 20px;">

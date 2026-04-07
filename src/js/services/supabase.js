@@ -91,7 +91,8 @@ export async function syncCandidatosFromSupabase(options = {}) {
         horarios,
         mediosComunicacion,
         estadosGestion,
-        eventos
+        eventos,
+        tiposReunion
     ] = await Promise.all([
         fetchSupabaseTable('candidatos', options),
         fetchSupabaseTable('candidato_ubicacion', options),
@@ -112,7 +113,8 @@ export async function syncCandidatosFromSupabase(options = {}) {
         fetchSupabaseTable('horarios', options),
         fetchSupabaseTable('medios_comunicacion', options),
         fetchSupabaseTable('estados_gestion', options),
-        fetchSupabaseTable('eventos', options)
+        fetchSupabaseTable('eventos', options),
+        fetchSupabaseTable('tipos_reunion', options)
     ]);
 
     const tiposDocumentoMap = buildLookupMap(tiposDocumento);
@@ -128,10 +130,11 @@ export async function syncCandidatosFromSupabase(options = {}) {
     const horariosMap = buildLookupMap(horarios);
     const mediosMap = buildLookupMap(mediosComunicacion);
     const estadosMap = buildLookupMap(estadosGestion);
+    const tiposReunionMap = buildLookupMap(tiposReunion);
     const eventosMap = buildLookupMap(
         (eventos || []).map((evento) => ({
             ...evento,
-            descripcion: `${evento.tipo_reunion || 'Evento'}${evento.fecha_hora ? ` - ${new Date(evento.fecha_hora).toLocaleString()}` : ''}`
+            descripcion: `${tiposReunionMap.get(String(evento.tipo_reunion_id))?.label || 'Evento'}${evento.fecha_hora ? ` - ${new Date(evento.fecha_hora).toLocaleString()}` : ''}`
         }))
     );
 
@@ -462,36 +465,70 @@ export async function syncLlamadasFromSupabase(options = {}) {
 }
 
 export async function syncEventosFromSupabase(options = {}) {
-    const [eventos, horarios, candidatos] = await Promise.all([
+    const [eventos, horarios, candidatos, candidatoEvento, tiposReunion, sedes] = await Promise.all([
         fetchSupabaseTable('eventos', options),
         fetchSupabaseTable('horarios', options),
-        fetchSupabaseTable('candidatos', options)
+        fetchSupabaseTable('candidatos', options),
+        fetchSupabaseTable('candidato_evento', options),
+        fetchSupabaseTable('tipos_reunion', options),
+        fetchSupabaseTable('sedes', options)
     ]);
 
     const horariosMap = new Map((horarios || []).map(h => [String(h.id), h]));
+    const tiposReunionMap = new Map((tiposReunion || []).map(t => [String(t.id), t]));
+    const sedesMap = new Map((sedes || []).map(s => [String(s.id), s]));
+    const candidatosMap = new Map((candidatos || []).map(c => [String(c.id), c]));
     const candidatosPorEvento = new Map();
 
-    (candidatos || []).forEach((candidato) => {
-        if (candidato.evento_asignado_id) {
-            const eventoId = String(candidato.evento_asignado_id);
-            const nombre = [candidato.nombre, candidato.apellido].filter(Boolean).join(' ').trim();
-            const actuales = candidatosPorEvento.get(eventoId) || [];
-            candidatosPorEvento.set(eventoId, [...actuales, nombre].filter(Boolean));
-        }
+    (candidatoEvento || []).forEach((rel) => {
+        const eventoId = String(rel.evento_id);
+        const candidato = candidatosMap.get(String(rel.candidato_id));
+        if (!candidato) return;
+        const nombre = [candidato.nombre, candidato.apellido].filter(Boolean).join(' ').trim();
+        const actuales = candidatosPorEvento.get(eventoId) || [];
+        candidatosPorEvento.set(eventoId, [...actuales, {
+            id: rel.candidato_id,
+            nombre
+        }].filter((x) => x?.nombre));
     });
 
     return (eventos || []).map((evento) => {
         const horario = horariosMap.get(String(evento.horario_id));
+        const tipoReunion = tiposReunionMap.get(String(evento.tipo_reunion_id));
+        const sede = sedesMap.get(String(evento.sede_id));
+        const asignados = candidatosPorEvento.get(String(evento.id)) || [];
         return {
             id: evento.id,
-            titulo: evento.tipo_reunion || 'Evento',
-            tipo: horario?.descripcion || 'Programación',
-            estado: evento.estado || 'Programado',
+            tipo_reunion_id: evento.tipo_reunion_id,
+            sede_id: evento.sede_id,
+            titulo: tipoReunion?.descripcion || `Tipo ${evento.tipo_reunion_id || ''}`,
+            tipo: horario?.descripcion || tipoReunion?.codigo || 'Programación',
+            sede: sede?.nombre || sede?.descripcion || sede?.codigo || '',
+            estado_db: evento.estado || 'DISPONIBLE',
+            estado: evento.estado || 'DISPONIBLE',
             fecha: evento.fecha_hora || '',
-            candidato: (candidatosPorEvento.get(String(evento.id)) || []).join(', ') || 'Ninguno',
+            fecha_hora: evento.fecha_hora || '',
+            candidato: asignados.map((a) => a.nombre).join(', ') || 'Ninguno',
+            candidato_id: asignados[0]?.id || null,
             descripcion: evento.descripcion || ''
         };
     });
+}
+
+export async function createCandidatoEventoInSupabase(payload, options = {}) {
+    const response = await mutateSupabaseTable('candidato_evento', {
+        method: 'POST',
+        query: '?select=*',
+        body: payload
+    }, options);
+    return Array.isArray(response) ? response[0] : response;
+}
+
+export async function deleteCandidatoEventoByEventoInSupabase(eventoId, options = {}) {
+    await mutateSupabaseTable('candidato_evento', {
+        method: 'DELETE',
+        query: `?evento_id=eq.${encodeURIComponent(eventoId)}&select=id`
+    }, options);
 }
 
 const readFromEdgeProxy = async (table) => {
