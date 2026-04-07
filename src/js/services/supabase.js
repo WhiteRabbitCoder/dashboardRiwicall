@@ -287,6 +287,34 @@ const readMutationFromEdgeProxy = async (table, { method = 'POST', query = '', b
     return data;
 };
 
+const mutateFromLocalDevProxy = async (table, { method = 'POST', query = '', body } = {}) => {
+    const endpoint = new URL(LOCAL_DEV_PROXY_URL, window.location.origin);
+    endpoint.searchParams.set('table', table);
+    if (query) {
+        const raw = query.startsWith('?') ? query.slice(1) : query;
+        const params = new URLSearchParams(raw);
+        for (const [key, value] of params.entries()) {
+            endpoint.searchParams.set(key, value);
+        }
+    }
+
+    const response = await fetch(endpoint.toString(), {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined
+    });
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok) {
+        const detail = typeof data === 'object' && data !== null
+            ? (data.error || data.message || JSON.stringify(data))
+            : String(data || '');
+        throw new Error(`Proxy local devolvio ${response.status}${detail ? `: ${detail}` : ''}`);
+    }
+
+    return data;
+};
+
 const mutateDirectSupabase = async (
     table,
     { method = 'POST', query = '', body } = {},
@@ -334,6 +362,7 @@ async function mutateSupabaseTable(table, operation = {}, options = {}) {
 
     const strategies = [];
     if (isLocalDevHost()) {
+        strategies.push(() => mutateFromLocalDevProxy(table, operation));
         if (preferDirect) {
             strategies.push(() => mutateDirectSupabase(table, operation, { supabaseUrl, supabaseAnonKey }));
             strategies.push(() => readMutationFromEdgeProxy(table, operation));

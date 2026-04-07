@@ -26,7 +26,7 @@ export const Sidebar = {
                 </a>
 
                 <a href="#/tracking" class="flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 text-white transition-all group">
-                    <i data-lucide="trello" class="w-5 h-5 text-riwi-mint"></i>
+                    <i data-lucide="layout-dashboard" class="w-5 h-5 text-riwi-mint"></i>
                     <span class="font-medium text-sm">Seguimiento</span>
                 </a>
 

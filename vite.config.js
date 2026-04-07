@@ -57,6 +57,14 @@ export default defineConfig(({ mode }) => {
                     server.middlewares.use('/__local/supabase-proxy', async (req, res) => {
                         const requestUrl = new URL(req.url || '', 'http://localhost');
                         const table = requestUrl.searchParams.get('table') || 'candidatos';
+                        const method = String(req.method || 'GET').toUpperCase();
+
+                        if (!['GET', 'POST', 'PATCH', 'DELETE'].includes(method)) {
+                            res.statusCode = 405;
+                            res.setHeader('content-type', 'application/json; charset=utf-8');
+                            res.end(JSON.stringify({ error: 'Metodo no permitido.' }));
+                            return;
+                        }
 
                         if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(table)) {
                             res.statusCode = 400;
@@ -81,13 +89,34 @@ export default defineConfig(({ mode }) => {
                         }
 
                         try {
-                            const endpoint = `${supabaseUrl}/rest/v1/${table}?select=*`;
-                            const upstream = await fetch(endpoint, {
-                                headers: {
-                                    apikey: serviceOrKey,
-                                    Authorization: `Bearer ${serviceOrKey}`
+                            const proxiedParams = new URLSearchParams(requestUrl.searchParams);
+                            proxiedParams.delete('table');
+                            if (!proxiedParams.has('select')) {
+                                proxiedParams.set('select', '*');
+                            }
+
+                            const query = proxiedParams.toString();
+                            const endpoint = `${supabaseUrl}/rest/v1/${table}${query ? `?${query}` : ''}`;
+                            const headers = {
+                                'Content-Type': 'application/json',
+                                apikey: serviceOrKey,
+                                Authorization: `Bearer ${serviceOrKey}`
+                            };
+
+                            const fetchOptions = { method, headers };
+                            if (method !== 'GET' && method !== 'HEAD') {
+                                const bodyChunks = [];
+                                for await (const chunk of req) {
+                                    bodyChunks.push(Buffer.from(chunk));
                                 }
-                            });
+                                const rawBody = Buffer.concat(bodyChunks).toString('utf8');
+                                if (rawBody) {
+                                    fetchOptions.body = rawBody;
+                                }
+                                headers.Prefer = 'return=representation';
+                            }
+
+                            const upstream = await fetch(endpoint, fetchOptions);
 
                             const text = await upstream.text();
                             res.statusCode = upstream.status;
