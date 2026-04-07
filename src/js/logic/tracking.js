@@ -6,29 +6,37 @@ export function initTrackingView() {
     const datosGuardados = localStorage.getItem('candidatos_riwicalls');
     const listaCandidatos = datosGuardados ? JSON.parse(datosGuardados) : [];
 
+    // Mapeo de estados reales a columnas del kanban
+    // Estados: PENDIENTE, AGENDADO, NO_INTERESADO, NUMERO_INCORRECTO, DESCARTADO
     const pipelineData = {
-        'inscritos': [],
-        'llamar': [],
-        'enProceso': [],
-        'admitidos': [],
-        'noInteresado': []
+        'pendiente': [],        // PENDIENTE: En proceso de contacto
+        'agendado': [],         // AGENDADO: Cita confirmada
+        'noInteresado': [],     // NO_INTERESADO: Descartó la convocatoria
+        'descartado': []        // DESCARTADO: Proceso cerrado (incluye NUMERO_INCORRECTO)
     };
 
     listaCandidatos.forEach(can => {
-        const estadoCandidato = can.estado ? can.estado.toLowerCase() : 'inscritos';
-        if (estadoCandidato.includes('admitido')) pipelineData['admitidos'].push(can);
-        else if (estadoCandidato.includes('proceso')) pipelineData['enProceso'].push(can);
-        else if (estadoCandidato.includes('no interesado') || estadoCandidato.includes('nointeresado')) pipelineData['noInteresado'].push(can);
-        else if (estadoCandidato.includes('llamar')) pipelineData['llamar'].push(can);
-        else pipelineData['inscritos'].push(can);
+        const estadoCandidato = (can.estado_gestion || can.estado || 'PENDIENTE').toUpperCase();
+
+        if (estadoCandidato.includes('AGENDADO') || estadoCandidato.includes('CITA')) {
+            pipelineData['agendado'].push(can);
+        } else if (estadoCandidato.includes('NO_INTERESADO') || estadoCandidato.includes('DESCARTÓ')) {
+            pipelineData['noInteresado'].push(can);
+        } else if (estadoCandidato.includes('NUMERO_INCORRECTO') || estadoCandidato.includes('INCORRECTO')) {
+            pipelineData['descartado'].push(can);
+        } else if (estadoCandidato.includes('DESCARTADO') || estadoCandidato.includes('CERRADO')) {
+            pipelineData['descartado'].push(can);
+        } else {
+            // PENDIENTE: En proceso de contacto (default)
+            pipelineData['pendiente'].push(can);
+        }
     });
 
     const columnas = [
-        { key: 'inscritos', label: 'Inscritos' },
-        { key: 'llamar', label: 'Llamar' },
-        { key: 'enProceso', label: 'En proceso' },
-        { key: 'admitidos', label: 'Admitidos' },
-        { key: 'noInteresado', label: 'No Interesado' }
+        { key: 'pendiente', label: 'En proceso' },
+        { key: 'agendado', label: 'Citas agendadas' },
+        { key: 'noInteresado', label: 'No Interesados' },
+        { key: 'descartado', label: 'Descartados' }
     ];
 
     summary.innerHTML = columnas.map((col, index) => `

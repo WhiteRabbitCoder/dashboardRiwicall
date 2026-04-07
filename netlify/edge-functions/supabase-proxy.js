@@ -7,7 +7,12 @@ const json = (payload, status = 200) => new Response(JSON.stringify(payload), {
 });
 
 const ALLOWED_TABLES = new Set([
+    'candidato_evento',
+    'candidato_fase',
+    'candidato_gestion',
     'candidato_ideal',
+    'candidato_perfil',
+    'candidato_ubicacion',
     'candidatos',
     'cola_llamadas',
     'conocimientos_programacion',
@@ -20,14 +25,14 @@ const ALLOWED_TABLES = new Set([
     'horarios',
     'llamadas',
     'medios_comunicacion',
-    'motivos_llamada',
     'municipios',
     'niveles_educativos',
     'ocupaciones',
     'resultados_llamada',
     'sedes',
     'tipos_convenio',
-    'tipos_documento'
+    'tipos_documento',
+    'tipos_reunion'
 ]);
 
 const isValidSupabaseUrl = (value) => {

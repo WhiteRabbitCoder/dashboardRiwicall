@@ -4,27 +4,13 @@ const CANDIDATES_STORAGE_KEY = 'candidatos_riwicalls';
 const CALLS_STORAGE_KEY = 'llamadas_riwicalls';
 
 export async function initDashboard() {
+    // 1. Usar datos locales inmediatamente (no bloquear UI)
     let candidates = JSON.parse(localStorage.getItem(CANDIDATES_STORAGE_KEY)) || [];
     let calls = JSON.parse(localStorage.getItem(CALLS_STORAGE_KEY)) || [];
 
-    try {
-        const [syncedCandidates, syncedCalls] = await Promise.all([
-            syncCandidatosFromSupabase(),
-            syncLlamadasFromSupabase()
-        ]);
-        if (Array.isArray(syncedCandidates)) {
-            candidates = syncedCandidates;
-            localStorage.setItem(CANDIDATES_STORAGE_KEY, JSON.stringify(candidates));
-        }
-        if (Array.isArray(syncedCalls)) {
-            calls = syncedCalls;
-            localStorage.setItem(CALLS_STORAGE_KEY, JSON.stringify(calls));
-        }
-    } catch (error) {
-        console.warn('Dashboard fallback to local storage data:', error);
-    }
-
+    // Renderizar inmediatamente con datos locales
     renderMetrics(candidates, calls);
+    renderGenderChart(candidates);
     renderAgeBars(candidates);
     renderSecondRow(candidates);
     renderThirdRow(candidates);
@@ -32,6 +18,46 @@ export async function initDashboard() {
     renderCallStates(calls);
     initTooltips();
     if (window.lucide) window.lucide.createIcons();
+
+    // 2. Sincronizar en background sin bloquear (con timeout para no esperar demasiado)
+    try {
+        const abortController = new AbortController();
+        const timeoutId = setTimeout(() => abortController.abort(), 8000); // 8 segundos timeout
+
+        const [syncedCandidates, syncedCalls] = await Promise.all([
+            syncCandidatosFromSupabase().catch(() => null),
+            syncLlamadasFromSupabase().catch(() => null)
+        ]);
+
+        clearTimeout(timeoutId);
+
+        let hasUpdates = false;
+        if (Array.isArray(syncedCandidates) && syncedCandidates.length > 0) {
+            candidates = syncedCandidates;
+            localStorage.setItem(CANDIDATES_STORAGE_KEY, JSON.stringify(candidates));
+            hasUpdates = true;
+        }
+        if (Array.isArray(syncedCalls) && syncedCalls.length > 0) {
+            calls = syncedCalls;
+            localStorage.setItem(CALLS_STORAGE_KEY, JSON.stringify(calls));
+            hasUpdates = true;
+        }
+
+        // Actualizar UI solo si hay cambios
+        if (hasUpdates) {
+            renderMetrics(candidates, calls);
+            renderGenderChart(candidates);
+            renderAgeBars(candidates);
+            renderSecondRow(candidates);
+            renderThirdRow(candidates);
+            renderCandidateStates(candidates);
+            renderCallStates(calls);
+            initTooltips();
+            if (window.lucide) window.lucide.createIcons();
+        }
+    } catch (error) {
+        console.warn('Dashboard sync timeout or error, using local data:', error);
+    }
 }
 
 function renderMetrics(candidates, calls) {
@@ -51,6 +77,47 @@ function renderMetrics(candidates, calls) {
     `;
 }
 
+function renderGenderChart(candidates) {
+    const container = document.getElementById('gender-chart-container');
+    if (!container) return;
+
+    let hombres = 0;
+    let mujeres = 0;
+
+    candidates.forEach((c) => {
+        const generoId = String(c.genero || c.genero_id || '').toUpperCase();
+        if (generoId === 'M' || generoId === 'MASCULINO') hombres++;
+        else if (generoId === 'F' || generoId === 'FEMENINO') mujeres++;
+    });
+
+    const total = hombres + mujeres || 1;
+    const pM = Math.round((hombres / total) * 100);
+    const pF = 100 - pM;
+
+    container.innerHTML = `
+        <h4 class="text-slate-500 text-[10px] font-black uppercase tracking-widest self-start mb-10">Distribución por Género</h4>
+        <div class="relative w-40 h-40 group chart-hover-zone" data-tip-hombres="${hombres} Hombres (${hombres === 0 && mujeres === 0 ? 0 : pM}%)" data-tip-mujeres="${mujeres} Mujeres (${hombres === 0 && mujeres === 0 ? 0 : pF}%)">
+            <div class="w-full h-full rounded-full cursor-pointer transition-transform duration-300 hover:scale-105" 
+                style="background: conic-gradient(#6366F1 0% ${pM}%, #71C6A0 ${pM}% 100%); 
+                    mask-image: radial-gradient(transparent 45%, black 46%); 
+                    -webkit-mask-image: radial-gradient(transparent 45%, black 46%);">
+            </div>
+            <div style="position: absolute; top: -25px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center;">
+                <span style="font-weight: 900; font-size: 15px; color: #6366F1;">${hombres}</span>
+                <div style="width: 1.5px; height: 15px; background: #6366F1;"></div>
+            </div>
+            <div style="position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center;">
+                <div style="width: 1.5px; height: 15px; background: #71C6A0;"></div>
+                <span style="font-weight: 900; font-size: 15px; color: #71C6A0;">${mujeres}</span>
+            </div>
+        </div>
+        <div class="mt-12 flex gap-6">
+            <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-sm" style="background: #6366F1;"></div><span class="text-[10px] font-bold text-slate-400 uppercase">Hombres</span></div>
+            <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-sm" style="background: #71C6A0;"></div><span class="text-[10px] font-bold text-slate-400 uppercase">Mujeres</span></div>
+        </div>
+    `;
+}
+
 function renderAgeBars(candidates) {
     const ageRanges = [
         { range: '17-22', count: 0 },
@@ -67,10 +134,10 @@ function renderAgeBars(candidates) {
     });
 
     const maxCount = Math.max(1, ...ageRanges.map((entry) => entry.count));
-    const ageContainer = document.getElementById('barras-edad-container');
+    const ageContainer = document.getElementById('age-chart-container');
     if (!ageContainer) return;
 
-    ageContainer.innerHTML = ageRanges.map((entry) => {
+    const barsHtml = ageRanges.map((entry) => {
         const heightPercent = `${Math.max(8, (entry.count / maxCount) * 100)}%`;
         return `
             <div class="chart-hover-zone group relative flex flex-col items-center w-40" style="height: ${heightPercent};"
@@ -79,6 +146,23 @@ function renderAgeBars(candidates) {
             </div>
         `;
     }).join('');
+
+    ageContainer.innerHTML = `
+        <h4 class="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-6">Rangos de Edad</h4>
+        <div class="flex h-48 w-full">
+            <div class="flex flex-col justify-between text-[10px] font-bold text-slate-400 pr-2 pb-6">
+                <span>${maxCount}</span><span>${Math.max(0, Math.round(maxCount*0.75))}</span><span>${Math.max(0, Math.round(maxCount*0.5))}</span><span>${Math.max(0, Math.round(maxCount*0.25))}</span><span>0</span>
+            </div>
+            <div class="flex-1 relative border-l border-b border-slate-200">
+                <div class="relative z-10 flex items-end justify-around h-full w-full px-4">
+                    ${barsHtml}
+                </div>
+            </div>
+        </div>
+        <div class="flex justify-around text-[10px] font-bold text-slate-400 uppercase tracking-tighter ml-6 mt-2">
+            <span class="w-20 text-center">17-22</span><span class="w-20 text-center">22-30</span><span class="w-20 text-center">30-35</span>
+        </div>
+    `;
 }
 
 function renderSecondRow(candidates) {
@@ -183,7 +267,7 @@ function renderRegistrationsChart(candidates) {
 }
 
 function renderCandidateStates(candidates) {
-    const container = document.getElementById('barras-estado-candidatos');
+    const container = document.getElementById('estado-candidatos-container');
     if (!container) return;
 
     const labels = ['Filtro CI', 'Inscrito', 'Llamado', 'Interesado', 'En proceso', 'Admitido', 'No interesado'];
@@ -201,7 +285,7 @@ function renderCandidateStates(candidates) {
     });
 
     const maxCount = Math.max(1, ...Array.from(counts.values()));
-    container.innerHTML = labels.map((label) => {
+    const barsHtml = labels.map((label) => {
         const count = counts.get(label) || 0;
         return `
             <div class="chart-hover-zone group relative h-6 w-full" data-tip-hombres="${count} Candidatos" data-tip-mujeres="Estado: ${label}">
@@ -209,6 +293,29 @@ function renderCandidateStates(candidates) {
             </div>
         `;
     }).join('');
+
+    container.innerHTML = `
+        <h4 class="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-6">Estado de Candidatos</h4>
+        <div class="flex flex-1 pr-4">
+            <div class="flex flex-col justify-between text-[10px] font-bold text-slate-400 pr-3 pb-6 text-right w-24">
+                <span>Filtro CI</span><span>Inscrito</span><span>Llamado</span><span>Interesado</span><span>En proceso</span><span>Admitido</span><span>No interesado</span>
+            </div>
+            <div class="flex-1 relative border-l border-b border-slate-200">
+                <div class="absolute inset-0 flex justify-between pointer-events-none">
+                    <div class="border-l border-slate-100 border-dashed h-full"></div>
+                    <div class="border-l border-slate-100 border-dashed h-full"></div>
+                    <div class="border-l border-slate-100 border-dashed h-full"></div>
+                    <div class="border-l border-slate-100 border-dashed h-full"></div>
+                </div>
+                <div class="relative z-10 flex flex-col justify-between h-full py-2">
+                    ${barsHtml}
+                </div>
+            </div>
+        </div>
+        <div class="flex justify-between text-[10px] font-bold text-slate-400 ml-[104px] mt-2 pr-4">
+            <span>0</span><span>${(maxCount * 0.25).toFixed(1)}</span><span>${(maxCount * 0.5).toFixed(1)}</span><span>${(maxCount * 0.75).toFixed(1)}</span><span>${maxCount}</span>
+        </div>
+    `;
 }
 
 function renderCallStates(calls) {

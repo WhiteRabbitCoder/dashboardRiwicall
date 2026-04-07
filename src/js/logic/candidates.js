@@ -36,7 +36,6 @@ const setOptions = (select, list, {
 export function initCandidatesView() {
     const inputBusqueda = document.getElementById('searchInput');
     const filtroEstado = document.getElementById('filtroEstado');
-    const filtroMotivo = document.getElementById('filtroMotivo');
     const filtroEvento = document.getElementById('filtroEvento');
     const tbody = document.getElementById('cuerpoTabla');
     const modal = document.getElementById('modalRegistro');
@@ -77,7 +76,6 @@ export function initCandidatesView() {
                 <td class="px-6 py-4 text-slate-500">${candidato.numero_documento || candidato.cedula || '-'}</td>
                 <td class="px-6 py-4 text-slate-500">${candidato.edad || '-'}</td>
                 <td class="px-6 py-4 text-slate-500">${candidato.telefono || candidato.tel || '-'}</td>
-                <td class="px-6 py-4 text-slate-500">${candidato.motivo_llamada || '-'}</td>
                 <td class="px-6 py-4"><span class="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[11px] font-bold">${candidato.estado_gestion || candidato.estado || '-'}</span></td>
                 <td class="px-6 py-4 text-slate-500">${candidato.evento_asignado || 'Sin evento'}</td>
                 <td class="px-6 py-4 text-center">
@@ -95,7 +93,6 @@ export function initCandidatesView() {
     const filtrar = () => {
         const texto = sanitize(inputBusqueda?.value).toLowerCase();
         const estado = filtroEstado?.value || 'Todos';
-        const motivo = filtroMotivo?.value || 'Todos';
         const evento = filtroEvento?.value || 'Todos';
 
         const datos = listaOriginal.filter((candidato) => {
@@ -115,17 +112,12 @@ export function initCandidatesView() {
                 || String(candidato.estado_gestion) === estado
                 || String(candidato.estado) === estado;
 
-            const matchMotivo = motivo === 'Todos'
-                || String(candidato.motivo_llamada_id) === motivo
-                || String(candidato.motivo_llamada) === motivo
-                || String(candidato.motivo) === motivo;
-
             const matchEvento = evento === 'Todos'
                 || (evento === 'SIN_EVENTO' && !candidato.evento_asignado_id)
                 || String(candidato.evento_asignado_id) === evento
                 || String(candidato.evento_asignado) === evento;
 
-            return matchBusqueda && matchEstado && matchMotivo && matchEvento;
+            return matchBusqueda && matchEstado && matchEvento;
         });
 
         renderTabla(datos);
@@ -153,7 +145,6 @@ export function initCandidatesView() {
         setOptions(document.getElementById('regNivelEducativo'), catalogos.nivelesEducativos, { emptyLabel: 'Sin definir' });
         setOptions(document.getElementById('regConocimientoProgramacion'), catalogos.conocimientosProgramacion, { emptyLabel: 'Sin definir' });
         setOptions(document.getElementById('regOcupacion'), catalogos.ocupaciones, { emptyLabel: 'Sin definir' });
-        setOptions(document.getElementById('regMotivoLlamada'), catalogos.motivosLlamada, { emptyLabel: 'Sin definir' });
         setOptions(document.getElementById('regEstadoGestion'), catalogos.estadosGestion);
         setOptions(document.getElementById('regEventoAsignado'), catalogos.eventos, { emptyLabel: 'Sin evento' });
 
@@ -167,7 +158,6 @@ export function initCandidatesView() {
 
     const poblarFiltros = () => {
         setOptions(filtroEstado, catalogos.estadosGestion, { emptyLabel: 'Estado: Todos', emptyValue: 'Todos' });
-        setOptions(filtroMotivo, catalogos.motivosLlamada, { emptyLabel: 'Motivo: Todos', emptyValue: 'Todos' });
         setOptions(filtroEvento, catalogos.eventos, { emptyLabel: 'Evento: Todos', emptyValue: 'Todos' });
         filtroEvento.insertAdjacentHTML('beforeend', '<option value="SIN_EVENTO">Sin evento</option>');
     };
@@ -175,7 +165,6 @@ export function initCandidatesView() {
     // Fallback: si no hay catálogos desde Supabase, construir opciones desde los datos locales
     const poblarFiltrosDesdeLocal = () => {
         const estadosMap = new Map();
-        const motivosMap = new Map();
         const eventosMap = new Map();
 
         (listaOriginal || []).forEach((c) => {
@@ -183,21 +172,15 @@ export function initCandidatesView() {
             const estLabel = c.estado_gestion || c.estado || estId;
             if (estId) estadosMap.set(estId, estLabel);
 
-            const motId = c.motivo_llamada_id ? String(c.motivo_llamada_id) : (c.motivo_llamada ? c.motivo_llamada : null);
-            const motLabel = c.motivo_llamada || c.motivo || motId;
-            if (motId) motivosMap.set(motId, motLabel);
-
             const evId = c.evento_asignado_id ? String(c.evento_asignado_id) : (c.evento_asignado ? c.evento_asignado : null);
             const evLabel = c.evento_asignado || evId;
             if (evId) eventosMap.set(evId, evLabel);
         });
 
         const estados = Array.from(estadosMap.entries()).map(([id, descripcion]) => ({ id, descripcion }));
-        const motivos = Array.from(motivosMap.entries()).map(([id, descripcion]) => ({ id, descripcion }));
         const eventos = Array.from(eventosMap.entries()).map(([id, descripcion]) => ({ id, descripcion }));
 
         setOptions(filtroEstado, estados, { emptyLabel: 'Estado: Todos', emptyValue: 'Todos' });
-        setOptions(filtroMotivo, motivos, { emptyLabel: 'Motivo: Todos', emptyValue: 'Todos' });
         setOptions(filtroEvento, eventos, { emptyLabel: 'Evento: Todos', emptyValue: 'Todos' });
         filtroEvento.insertAdjacentHTML('beforeend', '<option value="SIN_EVENTO">Sin evento</option>');
     };
@@ -260,7 +243,6 @@ export function initCandidatesView() {
             setSelectValue('regNivelEducativo', candidato.nivel_educativo_id);
             setSelectValue('regConocimientoProgramacion', candidato.conocimiento_programacion_id);
             setSelectValue('regOcupacion', candidato.ocupacion_id);
-            setSelectValue('regMotivoLlamada', candidato.motivo_llamada_id);
             setSelectValue('regEstadoGestion', candidato.estado_gestion_id);
             setSelectValue('regEventoAsignado', candidato.evento_asignado_id || '');
             setSelectValue('regFaseActual', candidato.fase_actual || 'PRUEBA_LOGICA');
@@ -277,52 +259,68 @@ export function initCandidatesView() {
     };
 
     const construirPayload = () => {
-        const payload = {
+        // Payload para la tabla candidatos (campos principales)
+        const candidatoPayload = {
             nombre: sanitize(document.getElementById('regNombre')?.value),
             apellido: sanitize(document.getElementById('regApellido')?.value),
             correo: sanitize(document.getElementById('regCorreo')?.value),
-            contrasena_hash: sanitize(document.getElementById('regContrasenaHash')?.value),
             telefono: sanitize(document.getElementById('regTelefono')?.value),
-            pais_codigo: sanitize(document.getElementById('regPaisCodigo')?.value) || '+57',
             fecha_nacimiento: sanitize(document.getElementById('regFechaNacimiento')?.value),
             tipo_documento_id: toIntOrNull(document.getElementById('regTipoDocumento')?.value),
             numero_documento: sanitize(document.getElementById('regNumeroDocumento')?.value),
             genero_id: toIntOrNull(document.getElementById('regGenero')?.value),
+            discord_usuario: sanitize(document.getElementById('regDiscordUsuario')?.value) || null
+        };
+
+        // Payload para candidato_perfil
+        const perfilPayload = {
             tipo_convenio_id: toIntOrNull(document.getElementById('regTipoConvenio')?.value),
+            nivel_educativo_id: toIntOrNull(document.getElementById('regNivelEducativo')?.value),
+            titulo: sanitize(document.getElementById('regTitulo')?.value) || null,
+            conocimiento_prog_id: toIntOrNull(document.getElementById('regConocimientoProgramacion')?.value),
+            ocupacion_id: toIntOrNull(document.getElementById('regOcupacion')?.value)
+        };
+
+        // Payload para candidato_ubicacion
+        const ubicacionPayload = {
             departamento_id: toIntOrNull(document.getElementById('regDepartamento')?.value),
             municipio_id: toIntOrNull(document.getElementById('regMunicipio')?.value),
             sede_interes_id: toIntOrNull(document.getElementById('regSedeInteres')?.value),
-            estrato_id: toIntOrNull(document.getElementById('regEstrato')?.value),
-            horario_id: toIntOrNull(document.getElementById('regHorario')?.value),
-            medio_comunicacion_id: toIntOrNull(document.getElementById('regMedioComunicacion')?.value),
-            nivel_educativo_id: toIntOrNull(document.getElementById('regNivelEducativo')?.value),
-            titulo: sanitize(document.getElementById('regTitulo')?.value) || null,
-            conocimiento_programacion_id: toIntOrNull(document.getElementById('regConocimientoProgramacion')?.value),
-            ocupacion_id: toIntOrNull(document.getElementById('regOcupacion')?.value),
-            motivo_llamada_id: toIntOrNull(document.getElementById('regMotivoLlamada')?.value),
+            estrato_id: toIntOrNull(document.getElementById('regEstrato')?.value)
+        };
+
+        // Payload para candidato_gestion
+        const gestionPayload = {
             estado_gestion_id: toIntOrNull(document.getElementById('regEstadoGestion')?.value),
-            evento_asignado_id: toIntOrNull(document.getElementById('regEventoAsignado')?.value),
-            fase_actual: sanitize(document.getElementById('regFaseActual')?.value) || 'PRUEBA_LOGICA',
-            discord_usuario: sanitize(document.getElementById('regDiscordUsuario')?.value) || null,
-            form_name: sanitize(document.getElementById('regFormName')?.value) || null,
-            form_id: sanitize(document.getElementById('regFormId')?.value) || null
+            medio_comunicacion_id: toIntOrNull(document.getElementById('regMedioComunicacion')?.value),
+            hora_preferida: sanitize(document.getElementById('regHorario')?.value) || null
         };
 
         const required = [
-            'nombre', 'apellido', 'correo', 'contrasena_hash', 'telefono', 'fecha_nacimiento', 'numero_documento'
+            'nombre', 'apellido', 'correo', 'telefono', 'fecha_nacimiento', 'numero_documento'
         ];
-        const missingString = required.filter((key) => !payload[key]);
+        const missingString = required.filter((key) => !candidatoPayload[key]);
+
         const requiredIds = [
-            'tipo_documento_id', 'genero_id', 'tipo_convenio_id', 'departamento_id', 'municipio_id',
-            'sede_interes_id', 'estrato_id', 'horario_id', 'medio_comunicacion_id', 'estado_gestion_id'
+            'tipo_documento_id', 'genero_id', 'tipo_convenio_id',
+            'departamento_id', 'municipio_id', 'sede_interes_id', 'estrato_id',
+            'estado_gestion_id'
         ];
-        const missingIds = requiredIds.filter((key) => !payload[key]);
+        const requiredFields = {
+            ...candidatoPayload, ...perfilPayload, ...ubicacionPayload, ...gestionPayload
+        };
+        const missingIds = requiredIds.filter((key) => !requiredFields[key]);
 
         if (missingString.length || missingIds.length) {
             throw new Error('Completa todos los campos obligatorios del candidato.');
         }
 
-        return payload;
+        return {
+            candidato: candidatoPayload,
+            perfil: perfilPayload,
+            ubicacion: ubicacionPayload,
+            gestion: gestionPayload
+        };
     };
 
     const recargarDesdeSupabase = async () => {
@@ -353,14 +351,14 @@ export function initCandidatesView() {
             if (!res.ok) throw new Error('No se pudo descargar datos de respaldo.');
             const txt = await res.text();
 
-            // Parsear mapas simples: tipos_documento, generos, motivos_llamada, estados_gestion
+            // Parsear mapas simples: tipos_documento, generos, estados_gestion
             const parseSimpleMap = (tableName) => {
-                const re = new RegExp(`INSERT INTO\\s+${tableName}\\s*\\([^)]*\\)\\s*VALUES([\s\S]*?);`, 'i');
+                const re = new RegExp(`INSERT INTO\\s+${tableName}\\s*\\([^)]*\\)\\s*VALUES([\\s\\S]*?);`, 'i');
                 const m = txt.match(re);
                 const out = {};
                 if (!m) return out;
                 const valuesBlock = m[1];
-                const tupleRe = /\('([^']*)'\s*,\s*'([^']*)'\)/g;
+                const tupleRe = /\\('([^']*)'\\s*,\\s*'([^']*)'\\)/g;
                 let t;
                 while ((t = tupleRe.exec(valuesBlock)) !== null) {
                     out[t[1]] = t[2];
@@ -370,7 +368,6 @@ export function initCandidatesView() {
 
             const tiposDocumentoMap = parseSimpleMap('tipos_documento');
             const generosMap = parseSimpleMap('generos');
-            const motivosMap = parseSimpleMap('motivos_llamada');
             const estadosMap = parseSimpleMap('estados_gestion');
 
             // Buscar los bloques VALUES de candidatos
@@ -427,7 +424,7 @@ export function initCandidatesView() {
                 c.genero = generosMap[generoCode] || generoCode || '';
                 // skip many ids, get motivo and estado codes
                 const motivoCode = get(18) || '';
-                c.motivo_llamada = motivosMap[motivoCode] || motivoCode || '';
+                c.motivo_llamada = motivoCode || '';
                 const estadoCode = get(19) || '';
                 c.estado_gestion = estadosMap[estadoCode] || estadoCode || '';
 
@@ -447,7 +444,6 @@ export function initCandidatesView() {
 
     inputBusqueda?.addEventListener('input', filtrar);
     filtroEstado?.addEventListener('change', filtrar);
-    filtroMotivo?.addEventListener('change', filtrar);
     filtroEvento?.addEventListener('change', filtrar);
 
     document.getElementById('btnNuevoCandidato')?.addEventListener('click', () => abrirModal());
@@ -496,7 +492,10 @@ export function initCandidatesView() {
     btnGuardar.addEventListener('click', async () => {
         btnGuardar.disabled = true;
         try {
-            const payload = construirPayload();
+            const payloadCompleto = construirPayload();
+            // Solo enviamos el payload de candidato a Supabase (las relaciones las maneja el backend)
+            const payload = payloadCompleto.candidato;
+
             if (editandoId) {
                 await updateCandidatoInSupabase(editandoId, payload);
                 alert('Candidato actualizado correctamente.');

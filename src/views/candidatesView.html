@@ -14,13 +14,6 @@
         </div>
 
         <div class="relative">
-            <select id="filtroMotivo" class="appearance-none pl-4 pr-10 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-medium text-slate-600 focus:outline-none hover:bg-slate-50 cursor-pointer transition-all">
-                <option value="Todos">Motivo: Todos</option>
-            </select>
-            <i data-lucide="chevron-down" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"></i>
-        </div>
-
-        <div class="relative">
             <select id="filtroEvento" class="appearance-none pl-4 pr-10 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-medium text-slate-600 focus:outline-none hover:bg-slate-50 cursor-pointer transition-all">
                 <option value="Todos">Evento: Todos</option>
                 <option value="SIN_EVENTO">Sin evento</option>
@@ -47,7 +40,6 @@
                         <th class="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase text-left">Documento</th>
                         <th class="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase text-left">Edad</th>
                         <th class="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase text-left">Telefono</th>
-                        <th class="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase text-left">Motivo llamada</th>
                         <th class="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase text-left">Estado gestion</th>
                         <th class="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase text-left">Evento asignado</th>
                         <th class="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase text-left text-center">Acciones</th>
@@ -159,10 +151,6 @@
                 <select id="regOcupacion" class="w-full p-3.5 bg-white border border-slate-200 rounded-2xl outline-none"></select>
             </div>
 
-            <div class="space-y-2">
-                <label class="text-sm font-medium text-slate-500 ml-1">Motivo llamada</label>
-                <select id="regMotivoLlamada" class="w-full p-3.5 bg-white border border-slate-200 rounded-2xl outline-none"></select>
-            </div>
             <div class="space-y-2">
                 <label class="text-sm font-medium text-slate-500 ml-1">Estado gestion</label>
                 <select id="regEstadoGestion" class="w-full p-3.5 bg-white border border-slate-200 rounded-2xl outline-none"></select>

@@ -1,8 +1,9 @@
-export const reportsView = {
-    title: 'Reportes y Descargas',
+export async function reportsView() {
+    return {
+        title: 'Reportes y Descargas',
 
-    // 1. ESTRUCTURA (HTML y CSS)
-    template: `
+        // 1. ESTRUCTURA (HTML y CSS)
+        template: `
     <style>
         .reportes-container { padding: 32px; background: #F8FAFC; min-height: 100vh; }
         .text-hint { color: #64748B; font-size: 14px; margin-bottom: 24px; }
@@ -98,20 +99,21 @@ export const reportsView = {
     </div>
     `,
 
-    // 2. LÓGICA (Funcionalidad de botones)
-    logic: function() {
-        // Seleccionamos todos los botones de descarga
-        const botones = document.querySelectorAll('.btn-dl');
-        
-        botones.forEach(boton => {
-            boton.addEventListener('click', (e) => {
-                const tipo = e.target.closest('.card-descarga').querySelector('h3').innerText;
-                const formato = e.target.innerText;
-                console.log(`Descargando reporte: ${tipo} en formato ${formato}`);
-                // Aquí podrías integrar una librería como XLSX o simplemente un console.log por ahora
-            });
-        });
+        // 2. LÓGICA (Funcionalidad de botones)
+        logic: async function() {
+            // Seleccionamos todos los botones de descarga
+            const botones = document.querySelectorAll('.btn-dl');
 
-        if (window.lucide) lucide.createIcons();
-    }
-};
+            botones.forEach(boton => {
+                boton.addEventListener('click', (e) => {
+                    const tipo = e.target.closest('.card-descarga').querySelector('h3').innerText;
+                    const formato = e.target.innerText;
+                    console.log(`Descargando reporte: ${tipo} en formato ${formato}`);
+                    // Aquí podrías integrar una librería como XLSX o simplemente un console.log por ahora
+                });
+            });
+
+            if (window.lucide) lucide.createIcons();
+        }
+    };
+}

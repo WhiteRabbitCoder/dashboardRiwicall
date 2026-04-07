@@ -73,6 +73,11 @@ export function getSupabaseConnectionConfig() {
 export async function syncCandidatosFromSupabase(options = {}) {
     const [
         candidatos,
+        candidatoUbicacion,
+        candidatoPerfil,
+        candidatoGestion,
+        candidatoFase,
+        candidatoEvento,
         tiposDocumento,
         generos,
         tiposConvenio,
@@ -85,11 +90,15 @@ export async function syncCandidatosFromSupabase(options = {}) {
         ocupaciones,
         horarios,
         mediosComunicacion,
-        motivosLlamada,
         estadosGestion,
         eventos
     ] = await Promise.all([
         fetchSupabaseTable('candidatos', options),
+        fetchSupabaseTable('candidato_ubicacion', options),
+        fetchSupabaseTable('candidato_perfil', options),
+        fetchSupabaseTable('candidato_gestion', options),
+        fetchSupabaseTable('candidato_fase', options),
+        fetchSupabaseTable('candidato_evento', options),
         fetchSupabaseTable('tipos_documento', options),
         fetchSupabaseTable('generos', options),
         fetchSupabaseTable('tipos_convenio', options),
@@ -102,7 +111,6 @@ export async function syncCandidatosFromSupabase(options = {}) {
         fetchSupabaseTable('ocupaciones', options),
         fetchSupabaseTable('horarios', options),
         fetchSupabaseTable('medios_comunicacion', options),
-        fetchSupabaseTable('motivos_llamada', options),
         fetchSupabaseTable('estados_gestion', options),
         fetchSupabaseTable('eventos', options)
     ]);
@@ -119,7 +127,6 @@ export async function syncCandidatosFromSupabase(options = {}) {
     const ocupacionesMap = buildLookupMap(ocupaciones);
     const horariosMap = buildLookupMap(horarios);
     const mediosMap = buildLookupMap(mediosComunicacion);
-    const motivosMap = buildLookupMap(motivosLlamada);
     const estadosMap = buildLookupMap(estadosGestion);
     const eventosMap = buildLookupMap(
         (eventos || []).map((evento) => ({
@@ -128,22 +135,34 @@ export async function syncCandidatosFromSupabase(options = {}) {
         }))
     );
 
+    const ubiMap = new Map((candidatoUbicacion || []).map(u => [String(u.candidato_id), u]));
+    const perfilMap = new Map((candidatoPerfil || []).map(p => [String(p.candidato_id), p]));
+    const gestionMap = new Map((candidatoGestion || []).map(g => [String(g.candidato_id), g]));
+    const faseMap = new Map((candidatoFase || []).map(f => [String(f.candidato_id), f]));
+    const evMap = new Map((candidatoEvento || []).map(e => [String(e.candidato_id), e]));
+
     return (candidatos || []).map((candidato) => {
+        const ubi = ubiMap.get(String(candidato.id)) || {};
+        const perfil = perfilMap.get(String(candidato.id)) || {};
+        const gestion = gestionMap.get(String(candidato.id)) || {};
+        const fase = faseMap.get(String(candidato.id)) || {};
+        const candEv = evMap.get(String(candidato.id)) || {};
+
         const tipoDocumento = tiposDocumentoMap.get(String(candidato.tipo_documento_id));
         const genero = generosMap.get(String(candidato.genero_id));
-        const convenio = tiposConvenioMap.get(String(candidato.tipo_convenio_id));
-        const departamento = departamentosMap.get(String(candidato.departamento_id));
-        const municipio = municipiosMap.get(String(candidato.municipio_id));
-        const sede = sedesMap.get(String(candidato.sede_interes_id));
-        const estrato = estratosMap.get(String(candidato.estrato_id));
-        const nivelEducativo = nivelesMap.get(String(candidato.nivel_educativo_id));
-        const nivelProg = conocimientosMap.get(String(candidato.conocimiento_programacion_id));
-        const ocupacion = ocupacionesMap.get(String(candidato.ocupacion_id));
-        const horario = horariosMap.get(String(candidato.horario_id));
-        const medio = mediosMap.get(String(candidato.medio_comunicacion_id));
-        const motivoLlamada = motivosMap.get(String(candidato.motivo_llamada_id));
-        const estadoGestion = estadosMap.get(String(candidato.estado_gestion_id));
-        const eventoAsignado = eventosMap.get(String(candidato.evento_asignado_id));
+
+        const convenio = tiposConvenioMap.get(String(perfil.tipo_convenio_id));
+        const departamento = departamentosMap.get(String(ubi.departamento_id));
+        const municipio = municipiosMap.get(String(ubi.municipio_id));
+        const sede = sedesMap.get(String(ubi.sede_interes_id));
+        const estrato = estratosMap.get(String(ubi.estrato_id));
+        const nivelEducativo = nivelesMap.get(String(perfil.nivel_educativo_id));
+        const nivelProg = conocimientosMap.get(String(perfil.conocimiento_prog_id));
+        const ocupacion = ocupacionesMap.get(String(perfil.ocupacion_id));
+
+        const medio = mediosMap.get(String(gestion.medio_comunicacion_id));
+        const estadoGestion = estadosMap.get(String(gestion.estado_gestion_id));
+        const eventoAsignado = eventosMap.get(String(candEv.evento_id));
         const edad = calculateAge(candidato.fecha_nacimiento);
         const nombreCompleto = [candidato.nombre, candidato.apellido].filter(Boolean).join(' ').trim() || 'Sin nombre';
 
@@ -166,41 +185,46 @@ export async function syncCandidatosFromSupabase(options = {}) {
             correo: candidato.correo || '',
             pais_codigo: candidato.pais_codigo || '+57',
             fecha_nacimiento: candidato.fecha_nacimiento || '',
-            tipo_convenio_id: candidato.tipo_convenio_id,
+
+            tipo_convenio_id: perfil.tipo_convenio_id,
             tipo_convenio: convenio?.label || '',
-            departamento_id: candidato.departamento_id,
+            departamento_id: ubi.departamento_id,
             departamento: departamento?.label || '',
-            municipio_id: candidato.municipio_id,
+            municipio_id: ubi.municipio_id,
             municipio: municipio?.nombre || '',
-            sede_interes_id: candidato.sede_interes_id,
+            sede_interes_id: ubi.sede_interes_id,
             sede_interes: sede?.label || '',
-            estrato_id: candidato.estrato_id,
+            estrato_id: ubi.estrato_id,
             estrato: estrato?.label ? String(estrato.label) : '',
             educacion: nivelEducativo?.descripcion || '',
-            nivel_educativo_id: candidato.nivel_educativo_id,
-            titulo: candidato.titulo || '',
+            nivel_educativo_id: perfil.nivel_educativo_id,
+            titulo: perfil.titulo || '',
             programacion: nivelProg?.descripcion || '',
-            conocimiento_programacion_id: candidato.conocimiento_programacion_id,
-            ocupacion_id: candidato.ocupacion_id,
+            conocimiento_programacion_id: perfil.conocimiento_prog_id,
+            ocupacion_id: perfil.ocupacion_id,
             ocupacion: ocupacion?.label || '',
-            jornada: horario?.descripcion || '',
-            horario_id: candidato.horario_id,
-            medio_comunicacion_id: candidato.medio_comunicacion_id,
+
+            medio_comunicacion_id: gestion.medio_comunicacion_id,
             medio_comunicacion: medio?.label || '',
-            motivo_llamada_id: candidato.motivo_llamada_id,
-            motivo_llamada: motivoLlamada?.label || '',
-            estado_gestion_id: candidato.estado_gestion_id,
+            estado_gestion_id: gestion.estado_gestion_id,
             estado_gestion: estadoGestion?.descripcion || '',
-            estado: estadoGestion?.descripcion || candidato.fase_actual || 'Inscrito',
-            fase_actual: candidato.fase_actual || '',
-            evento_asignado_id: candidato.evento_asignado_id,
+
+            // fallbacks for missing properties in the new schema:
+            horario_id: null,
+            jornada: '',
+            motivo_llamada_id: null,
+            motivo_llamada: '',
+
+            estado: estadoGestion?.descripcion || fase.tipo_reunion_id ? `Fase ${fase.tipo_reunion_id}` : 'Inscrito',
+            fase_actual: fase.tipo_reunion_id ? `Fase ${fase.tipo_reunion_id}` : '',
+            evento_asignado_id: candEv.evento_id,
             evento_asignado: eventoAsignado?.label || '',
-            intentos_llamada: candidato.intentos_llamada || 0,
-            proxima_llamada: candidato.proxima_llamada || '',
-            hora_preferida_llamada: candidato.hora_preferida_llamada || '',
-            nota_horario: candidato.nota_horario || '',
-            form_name: candidato.form_name || '',
-            form_id: candidato.form_id || ''
+            intentos_llamada: gestion.intentos_llamada || 0,
+            proxima_llamada: '', // Not in DB natively as string, requires parsed logic
+            hora_preferida_llamada: gestion.hora_preferida || '',
+            nota_horario: gestion.nota_horario || '',
+            form_name: candidato.discord_usuario || '',
+            form_id: ''
         };
     });
 }
@@ -219,7 +243,6 @@ export async function getCandidatosCatalogos(options = {}) {
         nivelesEducativos,
         conocimientosProgramacion,
         ocupaciones,
-        motivosLlamada,
         estadosGestion,
         eventos
     ] = await Promise.all([
@@ -235,7 +258,6 @@ export async function getCandidatosCatalogos(options = {}) {
         fetchSupabaseTable('niveles_educativos', options),
         fetchSupabaseTable('conocimientos_programacion', options),
         fetchSupabaseTable('ocupaciones', options),
-        fetchSupabaseTable('motivos_llamada', options),
         fetchSupabaseTable('estados_gestion', options),
         fetchSupabaseTable('eventos', options)
     ]);
@@ -253,7 +275,6 @@ export async function getCandidatosCatalogos(options = {}) {
         nivelesEducativos,
         conocimientosProgramacion,
         ocupaciones,
-        motivosLlamada,
         estadosGestion,
         eventos
     };
@@ -416,29 +437,26 @@ export async function deleteCandidatoInSupabase(id, options = {}) {
 }
 
 export async function syncLlamadasFromSupabase(options = {}) {
-    const [llamadas, candidatos, resultados, motivos] = await Promise.all([
+    const [llamadas, candidatos, resultados] = await Promise.all([
         fetchSupabaseTable('llamadas', options),
         fetchSupabaseTable('candidatos', options),
-        fetchSupabaseTable('resultados_llamada', options),
-        fetchSupabaseTable('motivos_llamada', options)
+        fetchSupabaseTable('resultados_llamada', options)
     ]);
 
     const candidatosMap = new Map((candidatos || []).map(c => [String(c.id), c]));
     const resultadosMap = new Map((resultados || []).map(r => [String(r.id), r]));
-    const motivosMap = new Map((motivos || []).map(m => [String(m.id), m]));
 
     return (llamadas || []).map((llamada) => {
         const candidato = candidatosMap.get(String(llamada.candidato_id));
         const resultado = resultadosMap.get(String(llamada.resultado_id));
-        const motivo = motivosMap.get(String(candidato?.motivo_llamada_id));
         const nombre = [candidato?.nombre, candidato?.apellido].filter(Boolean).join(' ').trim() || 'Sin nombre';
         return {
             id: llamada.id,
             nombre,
             tel: candidato?.telefono || '',
             estado: resultado?.descripcion || 'Pendiente',
-            fechaLlamada: llamada.fecha_hora_llamada || llamada.created_at || '',
-            motivo: llamada.resumen || motivo?.descripcion || ''
+            fechaLlamada: llamada.fecha_hora || llamada.created_at || '',
+            motivo: llamada.nota || ''
         };
     });
 }
