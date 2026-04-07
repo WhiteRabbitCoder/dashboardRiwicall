@@ -7,7 +7,7 @@ export async function trackingView() {
         template,
         logic: async () => {
             const mod = await import('../logic/tracking.js');
-            if (mod && typeof mod.initTrackingView === 'function') mod.initTrackingView();
+            if (mod && typeof mod.initTrackingView === 'function') await mod.initTrackingView();
         }
     };
 }

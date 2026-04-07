@@ -7,7 +7,7 @@ export async function analyticsView() {
         template,
         logic: async () => {
             const mod = await import('../logic/analytics.js');
-            if (mod && typeof mod.initAnalyticsView === 'function') mod.initAnalyticsView();
+            if (mod && typeof mod.initAnalyticsView === 'function') await mod.initAnalyticsView();
         }
     };
 }

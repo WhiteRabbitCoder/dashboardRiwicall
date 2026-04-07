@@ -6,7 +6,6 @@ import {
     updateCandidatoInSupabase
 } from '../services/supabase.js';
 
-const STORAGE_KEY = 'candidatos_riwicalls';
 const CALL_CANDIDATE_ENDPOINT = '/api/calls/candidate';
 
 const toIntOrNull = (value) => {
@@ -16,6 +15,33 @@ const toIntOrNull = (value) => {
 };
 
 const sanitize = (value) => String(value || '').trim();
+
+const normalizeCountryCode = (value) => {
+    const digits = String(value || '').replace(/\D/g, '');
+    return digits ? `+${digits}` : '+57';
+};
+
+const buildPhoneWithCountryCode = (phoneValue, countryCodeValue) => {
+    const countryCode = normalizeCountryCode(countryCodeValue);
+    const countryDigits = countryCode.slice(1);
+    let phoneDigits = String(phoneValue || '').replace(/\D/g, '');
+
+    if (!phoneDigits) return '';
+
+    // Evita duplicar prefijo si el usuario ya lo incluyo.
+    if (phoneDigits.startsWith(countryDigits)) {
+        phoneDigits = phoneDigits.slice(countryDigits.length);
+    }
+
+    return phoneDigits ? `${countryCode}${phoneDigits}` : '';
+};
+
+const stripCountryCodeFromPhone = (phoneValue, countryCodeValue) => {
+    const countryDigits = normalizeCountryCode(countryCodeValue).slice(1);
+    const digits = String(phoneValue || '').replace(/\D/g, '');
+    if (!digits) return '';
+    return digits.startsWith(countryDigits) ? digits.slice(countryDigits.length) : digits;
+};
 
 const setOptions = (select, list, {
     emptyLabel = '',
@@ -44,7 +70,7 @@ export function initCandidatesView() {
 
     if (!tbody || !modal || !btnGuardar) return;
 
-    let listaOriginal = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    let listaOriginal = [];
     let editandoId = null;
     let catalogos = {
         tiposDocumento: [],
@@ -63,8 +89,6 @@ export function initCandidatesView() {
         estadosGestion: [],
         eventos: []
     };
-
-    const guardarEnLocal = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(listaOriginal));
 
     const obtenerCandidato = (id) => listaOriginal.find((c) => String(c.id) === String(id));
 
@@ -217,8 +241,9 @@ export function initCandidatesView() {
             document.getElementById('regApellido').value = candidato.apellido || candidato.nombre?.split(' ').slice(1).join(' ') || '';
             document.getElementById('regCorreo').value = candidato.correo || '';
             document.getElementById('regContrasenaHash').value = candidato.contrasena_hash || 'hash_prueba_ui';
-            document.getElementById('regTelefono').value = candidato.telefono || candidato.tel || '';
-            document.getElementById('regPaisCodigo').value = candidato.pais_codigo || '+57';
+            const paisCodigo = candidato.pais_codigo || '+57';
+            document.getElementById('regPaisCodigo').value = paisCodigo;
+            document.getElementById('regTelefono').value = stripCountryCodeFromPhone(candidato.telefono || candidato.tel || '', paisCodigo);
             document.getElementById('regFechaNacimiento').value = candidato.fecha_nacimiento || '';
             document.getElementById('regNumeroDocumento').value = candidato.numero_documento || candidato.cedula || '';
             document.getElementById('regTitulo').value = candidato.titulo || '';
@@ -259,12 +284,16 @@ export function initCandidatesView() {
     };
 
     const construirPayload = () => {
+        const paisCodigo = normalizeCountryCode(document.getElementById('regPaisCodigo')?.value);
+        const telefonoConcatenado = buildPhoneWithCountryCode(document.getElementById('regTelefono')?.value, paisCodigo);
+
         // Payload para la tabla candidatos (campos principales)
         const candidatoPayload = {
             nombre: sanitize(document.getElementById('regNombre')?.value),
             apellido: sanitize(document.getElementById('regApellido')?.value),
             correo: sanitize(document.getElementById('regCorreo')?.value),
-            telefono: sanitize(document.getElementById('regTelefono')?.value),
+            telefono: telefonoConcatenado,
+            pais_codigo: paisCodigo,
             fecha_nacimiento: sanitize(document.getElementById('regFechaNacimiento')?.value),
             tipo_documento_id: toIntOrNull(document.getElementById('regTipoDocumento')?.value),
             numero_documento: sanitize(document.getElementById('regNumeroDocumento')?.value),
@@ -331,7 +360,6 @@ export function initCandidatesView() {
 
         if (Array.isArray(candidatos)) {
             listaOriginal = candidatos;
-            guardarEnLocal();
         }
 
         if (nuevosCatalogos) {
@@ -342,105 +370,6 @@ export function initCandidatesView() {
 
         filtrar();
     };
-
-    // Cargar fallback desde el SQL de ejemplo si existe en el servidor de desarrollo
-    async function loadFallbackFromSql() {
-        try {
-            const url = '/datos%20insertados.txt';
-            const res = await fetch(url);
-            if (!res.ok) throw new Error('No se pudo descargar datos de respaldo.');
-            const txt = await res.text();
-
-            // Parsear mapas simples: tipos_documento, generos, estados_gestion
-            const parseSimpleMap = (tableName) => {
-                const re = new RegExp(`INSERT INTO\\s+${tableName}\\s*\\([^)]*\\)\\s*VALUES([\\s\\S]*?);`, 'i');
-                const m = txt.match(re);
-                const out = {};
-                if (!m) return out;
-                const valuesBlock = m[1];
-                const tupleRe = /\\('([^']*)'\\s*,\\s*'([^']*)'\\)/g;
-                let t;
-                while ((t = tupleRe.exec(valuesBlock)) !== null) {
-                    out[t[1]] = t[2];
-                }
-                return out;
-            };
-
-            const tiposDocumentoMap = parseSimpleMap('tipos_documento');
-            const generosMap = parseSimpleMap('generos');
-            const estadosMap = parseSimpleMap('estados_gestion');
-
-            // Buscar los bloques VALUES de candidatos
-            const candRe = /INSERT INTO\s+candidatos[\s\S]*?VALUES([\s\S]*?);/i;
-            const candMatch = txt.match(candRe);
-            if (!candMatch) return [];
-            const vals = candMatch[1];
-
-            // Separar cada tupla de candidato. Asumimos que las tuplas están separadas por),\n( o),\n( con estructura simple
-            const tuples = [];
-            let depth = 0;
-            let current = '';
-            for (let i = 0; i < vals.length; i++) {
-                const ch = vals[i];
-                current += ch;
-                if (ch === '(') depth++;
-                if (ch === ')') depth--;
-                // cuando depth === 0, posible fin de tupla
-                if (depth === 0 && /\)\s*,?\s*$/m.test(current)) {
-                    tuples.push(current.trim().replace(/^,?\s*/, '').replace(/,?\s*$/,''));
-                    current = '';
-                }
-            }
-
-            // Helper para obtener tokens (SELECT 'CODE' or 'string' or NULL)
-            const tokenRe = /(SELECT[^']*'([^']+)'[^)]*\))|'([^']*)'|\bNULL\b/gi;
-            const outCandidates = [];
-            const uuidv4 = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) { const r = Math.random() * 16 | 0; const v = (c === 'x' ? r : (r & 0x3 | 0x8)); return v.toString(16); });
-
-            tuples.forEach(tupleText => {
-                const tokens = [];
-                let m;
-                while ((m = tokenRe.exec(tupleText)) !== null) {
-                    if (m[2]) tokens.push({type:'select', value:m[2]});
-                    else if (m[3] !== undefined) tokens.push({type:'string', value:m[3]});
-                    else tokens.push({type:'null', value:null});
-                }
-
-                // Columnas según el script: nombre, apellido, correo, contrasena_hash, telefono, fecha_nacimiento, tipo_documento_id, numero_documento, genero_id, tipo_convenio_id, departamento_id, municipio_id, sede_interes_id, estrato_id, horario_id, medio_comunicacion_id, nivel_educativo_id, titulo, conocimiento_programacion_id, ocupacion_id, motivo_llamada_id, estado_gestion_id, form_name, form_id
-                // Tomaremos las posiciones que nos interesan
-                const c = {};
-                const get = (idx) => tokens[idx] ? tokens[idx].value : null;
-                c.nombre = get(0) || '';
-                c.apellido = get(1) || '';
-                c.correo = get(2) || '';
-                c.contrasena_hash = get(3) || '';
-                c.telefono = get(4) || '';
-                c.fecha_nacimiento = get(5) || '';
-                // tipo_documento: token may be 'CC' from SELECT
-                const tipoDocCode = get(6) || '';
-                c.tipo_documento = tiposDocumentoMap[tipoDocCode] || tipoDocCode || '';
-                c.numero_documento = get(7) || '';
-                const generoCode = get(8) || '';
-                c.genero = generosMap[generoCode] || generoCode || '';
-                // skip many ids, get motivo and estado codes
-                const motivoCode = get(18) || '';
-                c.motivo_llamada = motivoCode || '';
-                const estadoCode = get(19) || '';
-                c.estado_gestion = estadosMap[estadoCode] || estadoCode || '';
-
-                // edad calculada
-                c.edad = c.fecha_nacimiento ? Math.max(0, Math.floor((Date.now() - new Date(c.fecha_nacimiento).getTime()) / (1000*60*60*24*365.25))) : '';
-                c.nombre = [c.nombre, c.apellido].filter(Boolean).join(' ').trim() || 'Sin nombre';
-                c.id = uuidv4();
-                outCandidates.push(c);
-            });
-
-            return outCandidates;
-        } catch (e) {
-            console.warn('Error parseando fallback SQL:', e);
-            return [];
-        }
-    }
 
     inputBusqueda?.addEventListener('input', filtrar);
     filtroEstado?.addEventListener('change', filtrar);
@@ -570,26 +499,11 @@ export function initCandidatesView() {
         }
     });
 
-    // Render inmediato con cache local para no dejar la tabla en blanco.
     filtrar();
 
     recargarDesdeSupabase().catch((error) => {
         console.warn('No fue posible sincronizar candidatos desde Supabase:', error);
-        (async () => {
-            try {
-                // si no hay datos locales, intentar cargar fallback desde el archivo SQL incluido
-                const local = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-                if (!local || !local.length) {
-                    const parsed = await loadFallbackFromSql();
-                    if (Array.isArray(parsed) && parsed.length) {
-                        listaOriginal = parsed;
-                        guardarEnLocal();
-                    }
-                }
-            } catch (e) { /* ignore */ }
-
-            try { poblarFiltrosDesdeLocal(); } catch (e) { /* ignore */ }
-            alert('No se pudo sincronizar con la base de datos. Se muestran datos locales si existen.');
-        })();
+        try { poblarFiltrosDesdeLocal(); } catch (e) { /* ignore */ }
+        alert('No se pudo sincronizar con Supabase.');
     });
 }

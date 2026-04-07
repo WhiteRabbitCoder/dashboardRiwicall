@@ -7,7 +7,7 @@ export async function eventsView() {
         template,
         logic: async () => {
             const mod = await import('../logic/events.js');
-            if (mod && typeof mod.initEventsView === 'function') mod.initEventsView();
+            if (mod && typeof mod.initEventsView === 'function') await mod.initEventsView();
         }
     };
 }

@@ -1,7 +1,12 @@
-import { syncEventosFromSupabase, createEventoInSupabase, deleteEventoInSupabase, updateEventoInSupabase } from '../services/supabase.js';
+import {
+    syncCandidatosFromSupabase,
+    syncEventosFromSupabase,
+    createEventoInSupabase,
+    deleteEventoInSupabase,
+    updateEventoInSupabase
+} from '../services/supabase.js';
 
-export function initEventsView() {
-    // Elementos del DOM
+export async function initEventsView() {
     const grid = document.getElementById('grid-eventos');
     const modalEv = document.getElementById('modalNuevoEvento');
     const selectCand = document.getElementById('evCandidato');
@@ -9,48 +14,43 @@ export function initEventsView() {
     const btnGuardarEv = document.getElementById('btnGuardarEvento');
     const btnAbrirEv = document.getElementById('btn-add-event');
 
+    let candidatosDisponibles = [];
+    let eventosGuardados = [];
+    let editandoEventoId = null;
+
     const cargarCandidatosDinamicos = () => {
-        const lista = JSON.parse(localStorage.getItem('candidatos_riwicalls')) || [];
         if (!selectCand) return;
         selectCand.innerHTML = '<option value="Ninguno">Ninguno</option>';
-        lista.forEach(c => {
-            const nombre = c.nombre || c.Nombre || "Sin nombre";
-            const opt = document.createElement('option'); opt.value = nombre; opt.textContent = nombre; selectCand.appendChild(opt);
+        candidatosDisponibles.forEach((c) => {
+            const nombre = c.nombre || c.Nombre || 'Sin nombre';
+            const opt = document.createElement('option');
+            opt.value = nombre;
+            opt.textContent = nombre;
+            selectCand.appendChild(opt);
         });
     };
 
     const renderizarCards = (lista) => {
         if (!grid) return;
-        grid.innerHTML = lista.map((ev, index) => `
+        grid.innerHTML = (lista || []).map((ev, index) => `
             <div class="event-card ${ev.destacado ? 'destacada' : ''}">
                 <div class="card-header">
-                    <h3 class="card-title">${ev.titulo || ev.nombre}</h3>
-                    <span class="card-status">${ev.estado}</span>
+                    <h3 class="card-title">${ev.titulo || ev.nombre || ev.tipo_reunion || 'Evento'}</h3>
+                    <span class="card-status">${ev.estado || 'Programado'}</span>
                 </div>
-                <p class="card-subtitle">${ev.tipo}</p>
-                <div class="info-row"><i data-lucide="calendar" class="w-4 h-4"></i><span>${ev.fecha}</span></div>
+                <p class="card-subtitle">${ev.tipo || 'Programacion'}</p>
+                <div class="info-row"><i data-lucide="calendar" class="w-4 h-4"></i><span>${ev.fecha || ev.fecha_hora || ''}</span></div>
                 ${ev.candidato ? `<div class="info-row"><i data-lucide="user" class="w-4 h-4"></i><span>Candidato: ${ev.candidato}</span></div>` : ''}
-                <p class="card-desc">${ev.descripcion}</p>
-                <div class="card-actions"><i data-lucide="pencil" class="w-4 h-4 edit-ev" data-index="${index}" data-id="${ev.id || ''}"></i><i data-lucide="trash-2" class="w-4 h-4 delete-ev" data-index="${index}" data-id="${ev.id || ''}"></i></div>
+                <p class="card-desc">${ev.descripcion || ''}</p>
+                <div class="card-actions">
+                    <i data-lucide="pencil" class="w-4 h-4 edit-ev" data-index="${index}" data-id="${ev.id || ''}"></i>
+                    <i data-lucide="trash-2" class="w-4 h-4 delete-ev" data-index="${index}" data-id="${ev.id || ''}"></i>
+                </div>
             </div>
         `).join('');
+
         if (window.lucide) lucide.createIcons();
     };
-
-    // Usar localStorage como respaldo, priorizando sincronización desde Supabase
-    let eventosGuardados = JSON.parse(localStorage.getItem('eventos_riwicalls')) || [];
-    let editandoEventoId = null;
-
-    btnAbrirEv?.addEventListener('click', () => {
-        editandoEventoId = null;
-        cargarCandidatosDinamicos();
-        resetFormularioEvento();
-        if (modalEv) modalEv.style.display = 'flex';
-    });
-    btnCerrarEv?.addEventListener('click', () => {
-        if (modalEv) modalEv.style.display = 'none';
-        editandoEventoId = null;
-    });
 
     const resetFormularioEvento = () => {
         document.getElementById('evNombre').value = '';
@@ -61,6 +61,25 @@ export function initEventsView() {
         document.getElementById('evDescripcion').value = '';
     };
 
+    btnAbrirEv?.addEventListener('click', async () => {
+        editandoEventoId = null;
+        resetFormularioEvento();
+        try {
+            const candidatos = await syncCandidatosFromSupabase();
+            candidatosDisponibles = Array.isArray(candidatos) ? candidatos : [];
+        } catch (error) {
+            console.warn('No se pudieron cargar candidatos para eventos desde Supabase:', error);
+            candidatosDisponibles = [];
+        }
+        cargarCandidatosDinamicos();
+        if (modalEv) modalEv.style.display = 'flex';
+    });
+
+    btnCerrarEv?.addEventListener('click', () => {
+        if (modalEv) modalEv.style.display = 'none';
+        editandoEventoId = null;
+    });
+
     btnGuardarEv?.addEventListener('click', async () => {
         try {
             const datosEvento = {
@@ -70,111 +89,84 @@ export function initEventsView() {
                 fecha_hora: document.getElementById('evFecha')?.value || new Date().toISOString()
             };
 
-            // Validar que al menos el título esté completo
             if (!datosEvento.tipo_reunion || datosEvento.tipo_reunion.trim() === '') {
                 alert('Por favor ingresa un nombre para el evento.');
                 return;
             }
 
             if (editandoEventoId) {
-                // Actualizar en Supabase
-                try {
-                    await updateEventoInSupabase(editandoEventoId, datosEvento);
-                } catch (err) {
-                    console.warn('No se pudo actualizar evento en Supabase:', err);
-                }
-
-                // Actualizar en localStorage
-                const idx = eventosGuardados.findIndex(e => e.id === editandoEventoId);
-                if (idx >= 0) {
-                    eventosGuardados[idx] = { ...eventosGuardados[idx], ...datosEvento, id: editandoEventoId };
-                }
+                await updateEventoInSupabase(editandoEventoId, datosEvento);
             } else {
-                // Crear en Supabase
-                try {
-                    const eventoCreado = await createEventoInSupabase(datosEvento);
-                    if (eventoCreado && eventoCreado.id) {
-                        eventosGuardados.push({
-                            id: eventoCreado.id,
-                            titulo: datosEvento.tipo_reunion,
-                            ...datosEvento
-                        });
-                    }
-                } catch (err) {
-                    console.warn('No se pudo crear evento en Supabase, guardando localmente:', err);
-                    // Fallback: guardar solo en localStorage con ID temporal
-                    const eventoLocal = {
-                        id: `local_${Date.now()}`,
-                        titulo: datosEvento.tipo_reunion,
-                        tipo: document.getElementById('evTipo')?.value || '',
-                        estado: datosEvento.estado,
-                        fecha: datosEvento.fecha_hora,
-                        candidato: document.getElementById('evCandidato')?.value || 'Ninguno',
-                        descripcion: datosEvento.descripcion
-                    };
-                    eventosGuardados.push(eventoLocal);
-                }
+                await createEventoInSupabase(datosEvento);
             }
 
-            localStorage.setItem('eventos_riwicalls', JSON.stringify(eventosGuardados));
+            const eventosSupabase = await syncEventosFromSupabase();
+            eventosGuardados = Array.isArray(eventosSupabase) ? eventosSupabase : [];
             renderizarCards(eventosGuardados);
+
             if (modalEv) modalEv.style.display = 'none';
             editandoEventoId = null;
         } catch (error) {
-            alert('Error al guardar el evento: ' + error.message);
+            alert(`Error al guardar el evento: ${error.message}`);
         }
     });
 
-    // Delegación de eventos
     grid?.addEventListener('click', async (e) => {
         const deleteBtn = e.target.closest('.delete-ev');
         const editBtn = e.target.closest('.edit-ev');
 
         if (deleteBtn) {
-            const index = deleteBtn.getAttribute('data-index');
+            const index = Number(deleteBtn.getAttribute('data-index'));
             const eventoId = deleteBtn.getAttribute('data-id');
+            if (!Number.isInteger(index) || index < 0) return;
+
             if (confirm('¿Seguro que quieres eliminar este evento?')) {
                 try {
-                    if (eventoId && !eventoId.startsWith('local_')) {
-                        await deleteEventoInSupabase(eventoId);
-                    }
+                    if (eventoId) await deleteEventoInSupabase(eventoId);
+                    const eventosSupabase = await syncEventosFromSupabase();
+                    eventosGuardados = Array.isArray(eventosSupabase) ? eventosSupabase : [];
+                    renderizarCards(eventosGuardados);
                 } catch (err) {
-                    console.warn('No se pudo eliminar evento en Supabase:', err);
+                    alert(`No se pudo eliminar el evento: ${err.message}`);
                 }
-                eventosGuardados.splice(index, 1);
-                localStorage.setItem('eventos_riwicalls', JSON.stringify(eventosGuardados));
-                renderizarCards(eventosGuardados);
             }
         }
+
         if (editBtn) {
-            const index = editBtn.getAttribute('data-index');
+            const index = Number(editBtn.getAttribute('data-index'));
             const eventoId = editBtn.getAttribute('data-id');
+            if (!Number.isInteger(index) || index < 0) return;
+
             const ev = eventosGuardados[index];
-            editandoEventoId = eventoId;
+            if (!ev) return;
+
+            editandoEventoId = eventoId || ev.id || null;
             document.getElementById('evNombre').value = ev.titulo || ev.nombre || ev.tipo_reunion || '';
             document.getElementById('evTipo').value = ev.tipo || '';
             document.getElementById('evEstado').value = ev.estado || '';
             document.getElementById('evFecha').value = ev.fecha || ev.fecha_hora || '';
             document.getElementById('evDescripcion').value = ev.descripcion || '';
+
+            try {
+                const candidatos = await syncCandidatosFromSupabase();
+                candidatosDisponibles = Array.isArray(candidatos) ? candidatos : [];
+            } catch (error) {
+                candidatosDisponibles = [];
+            }
             cargarCandidatosDinamicos();
             document.getElementById('evCandidato').value = ev.candidato || 'Ninguno';
+
             if (modalEv) modalEv.style.display = 'flex';
         }
     });
 
-    const cargarEventos = async () => {
-        try {
-            const eventosSupabase = await syncEventosFromSupabase();
-            if (Array.isArray(eventosSupabase) && eventosSupabase.length) {
-                eventosGuardados = eventosSupabase;
-                localStorage.setItem('eventos_riwicalls', JSON.stringify(eventosGuardados));
-            }
-        } catch (error) {
-            console.warn('No se pudieron cargar eventos desde Supabase:', error);
-        }
+    try {
+        const eventosSupabase = await syncEventosFromSupabase();
+        eventosGuardados = Array.isArray(eventosSupabase) ? eventosSupabase : [];
+    } catch (error) {
+        console.warn('No se pudieron cargar eventos desde Supabase:', error);
+        eventosGuardados = [];
+    }
 
-        renderizarCards(eventosGuardados);
-    };
-
-    cargarEventos();
+    renderizarCards(eventosGuardados);
 }

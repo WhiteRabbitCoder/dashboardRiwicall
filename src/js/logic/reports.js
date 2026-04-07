@@ -1,8 +1,19 @@
-export function initReportesView() {
-    const rawCandidatos = localStorage.getItem('candidatos_riwicalls');
-    const candidatos = rawCandidatos ? JSON.parse(rawCandidatos) : [];
-    const rawLlamadas = localStorage.getItem('llamadas_riwicalls');
-    const llamadas = rawLlamadas ? JSON.parse(rawLlamadas) : [];
+import { syncCandidatosFromSupabase, syncLlamadasFromSupabase } from '../services/supabase.js';
+
+export async function initReportesView() {
+    let candidatos = [];
+    let llamadas = [];
+
+    try {
+        const [candidatosSupabase, llamadasSupabase] = await Promise.all([
+            syncCandidatosFromSupabase(),
+            syncLlamadasFromSupabase()
+        ]);
+        candidatos = Array.isArray(candidatosSupabase) ? candidatosSupabase : [];
+        llamadas = Array.isArray(llamadasSupabase) ? llamadasSupabase : [];
+    } catch (error) {
+        console.warn('No se pudieron cargar reportes desde Supabase:', error);
+    }
 
     // Calcular estadísticas reales
     const totalCandidatos = candidatos.length;

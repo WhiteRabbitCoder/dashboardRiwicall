@@ -7,7 +7,7 @@ export async function callsView() {
         template,
         logic: async () => {
             const mod = await import('../logic/calls.js');
-            if (mod && typeof mod.initCallsView === 'function') mod.initCallsView();
+            if (mod && typeof mod.initCallsView === 'function') await mod.initCallsView();
         }
     };
 }

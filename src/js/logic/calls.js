@@ -10,7 +10,7 @@ export function initCallsView() {
     const btnN8n = document.getElementById('btn-n8n-flow');
     let indexEdicion = null;
 
-    let llamadas = JSON.parse(localStorage.getItem('llamadas_riwicalls')) || [];
+    let llamadas = [];
 
     const renderizarFilas = (datos) => {
         if (!tabla) return;
@@ -83,7 +83,6 @@ export function initCallsView() {
                 llamadas[indexEdicion].fechaLlamada = new Date().toLocaleString();
             }
             llamadas[indexEdicion].motivo = motivo;
-            localStorage.setItem('llamadas_riwicalls', JSON.stringify(llamadas));
             renderizarFilas(llamadas);
             modal.style.display = 'none';
             indexEdicion = null;
@@ -96,10 +95,7 @@ export function initCallsView() {
     const cargarLlamadas = async () => {
         try {
             const llamadasSupabase = await syncLlamadasFromSupabase();
-            if (Array.isArray(llamadasSupabase) && llamadasSupabase.length) {
-                llamadas = llamadasSupabase;
-                localStorage.setItem('llamadas_riwicalls', JSON.stringify(llamadas));
-            }
+            llamadas = Array.isArray(llamadasSupabase) ? llamadasSupabase : [];
         } catch (error) {
             console.warn('No se pudieron cargar llamadas desde Supabase:', error);
         }

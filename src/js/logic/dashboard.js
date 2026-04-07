@@ -1,12 +1,9 @@
 import { syncCandidatosFromSupabase, syncLlamadasFromSupabase } from '../services/supabase.js';
 
-const CANDIDATES_STORAGE_KEY = 'candidatos_riwicalls';
-const CALLS_STORAGE_KEY = 'llamadas_riwicalls';
-
 export async function initDashboard() {
-    // 1. Usar datos locales inmediatamente (no bloquear UI)
-    let candidates = JSON.parse(localStorage.getItem(CANDIDATES_STORAGE_KEY)) || [];
-    let calls = JSON.parse(localStorage.getItem(CALLS_STORAGE_KEY)) || [];
+    // Render inicial vacío mientras llega Supabase
+    let candidates = [];
+    let calls = [];
 
     // Renderizar inmediatamente con datos locales
     renderMetrics(candidates, calls);
@@ -19,44 +16,24 @@ export async function initDashboard() {
     initTooltips();
     if (window.lucide) window.lucide.createIcons();
 
-    // 2. Sincronizar en background sin bloquear (con timeout para no esperar demasiado)
+    // Cargar datos desde Supabase
     try {
-        const abortController = new AbortController();
-        const timeoutId = setTimeout(() => abortController.abort(), 8000); // 8 segundos timeout
-
-        const [syncedCandidates, syncedCalls] = await Promise.all([
-            syncCandidatosFromSupabase().catch(() => null),
-            syncLlamadasFromSupabase().catch(() => null)
+        [candidates, calls] = await Promise.all([
+            syncCandidatosFromSupabase(),
+            syncLlamadasFromSupabase()
         ]);
 
-        clearTimeout(timeoutId);
-
-        let hasUpdates = false;
-        if (Array.isArray(syncedCandidates) && syncedCandidates.length > 0) {
-            candidates = syncedCandidates;
-            localStorage.setItem(CANDIDATES_STORAGE_KEY, JSON.stringify(candidates));
-            hasUpdates = true;
-        }
-        if (Array.isArray(syncedCalls) && syncedCalls.length > 0) {
-            calls = syncedCalls;
-            localStorage.setItem(CALLS_STORAGE_KEY, JSON.stringify(calls));
-            hasUpdates = true;
-        }
-
-        // Actualizar UI solo si hay cambios
-        if (hasUpdates) {
-            renderMetrics(candidates, calls);
-            renderGenderChart(candidates);
-            renderAgeBars(candidates);
-            renderSecondRow(candidates);
-            renderThirdRow(candidates);
-            renderCandidateStates(candidates);
-            renderCallStates(calls);
-            initTooltips();
-            if (window.lucide) window.lucide.createIcons();
-        }
+        renderMetrics(candidates, calls);
+        renderGenderChart(candidates);
+        renderAgeBars(candidates);
+        renderSecondRow(candidates);
+        renderThirdRow(candidates);
+        renderCandidateStates(candidates);
+        renderCallStates(calls);
+        initTooltips();
+        if (window.lucide) window.lucide.createIcons();
     } catch (error) {
-        console.warn('Dashboard sync timeout or error, using local data:', error);
+        console.warn('No fue posible cargar dashboard desde Supabase:', error);
     }
 }
 
