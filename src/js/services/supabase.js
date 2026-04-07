@@ -589,3 +589,28 @@ export async function fetchSupabaseTable(table, options = {}) {
 
     throw new Error(`No fue posible sincronizar ${table}. ${errors.join(' | ')}`);
 }
+
+export async function createEventoInSupabase(payload, options = {}) {
+    const response = await mutateSupabaseTable('eventos', {
+        method: 'POST',
+        query: '?select=*',
+        body: payload
+    }, options);
+    return Array.isArray(response) ? response[0] : response;
+}
+
+export async function updateEventoInSupabase(id, payload, options = {}) {
+    const response = await mutateSupabaseTable('eventos', {
+        method: 'PATCH',
+        query: `?id=eq.${encodeURIComponent(id)}&select=*`,
+        body: payload
+    }, options);
+    return Array.isArray(response) ? response[0] : response;
+}
+
+export async function deleteEventoInSupabase(id, options = {}) {
+    await mutateSupabaseTable('eventos', {
+        method: 'DELETE',
+        query: `?id=eq.${encodeURIComponent(id)}&select=id`
+    }, options);
+}

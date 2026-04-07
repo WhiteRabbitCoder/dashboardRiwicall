@@ -1,4 +1,38 @@
 export async function reportsView() {
+    // Funciones para descargar archivos
+    const downloadCSV = (data, filename) => {
+        let csv = '';
+
+        if (Array.isArray(data) && data.length > 0) {
+            // Obtener headers del primer objeto
+            const headers = Object.keys(data[0]);
+            csv = headers.map(h => `"${String(h).replace(/"/g, '""')}"`).join(',') + '\n';
+
+            // Agregar filas
+            csv += data.map(row =>
+                headers.map(header => {
+                    const value = row[header] ?? '';
+                    return `"${String(value).replace(/"/g, '""')}"`;
+                }).join(',')
+            ).join('\n');
+        }
+
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        link.click();
+    };
+
+    const downloadJSON = (data, filename) => {
+        const json = JSON.stringify(data, null, 2);
+        const blob = new Blob([json], { type: 'application/json;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        link.click();
+    };
+
     return {
         title: 'Reportes y Descargas',
 
@@ -45,8 +79,8 @@ export async function reportsView() {
                     <p>Base de datos completa de inscritos.</p>
                 </div>
                 <div class="btn-group">
-                    <button class="btn-dl btn-csv" onclick="alert('Generando CSV de Candidatos...')">CSV</button>
-                    <button class="btn-dl btn-json">JSON</button>
+                    <button class="btn-dl btn-csv" data-tipo="candidatos" data-formato="csv">CSV</button>
+                    <button class="btn-dl btn-json" data-tipo="candidatos" data-formato="json">JSON</button>
                 </div>
             </div>
 
@@ -57,8 +91,8 @@ export async function reportsView() {
                     <p>Historial de interacciones de la IA.</p>
                 </div>
                 <div class="btn-group">
-                    <button class="btn-dl btn-csv">CSV</button>
-                    <button class="btn-dl btn-json">JSON</button>
+                    <button class="btn-dl btn-csv" data-tipo="llamadas" data-formato="csv">CSV</button>
+                    <button class="btn-dl btn-json" data-tipo="llamadas" data-formato="json">JSON</button>
                 </div>
             </div>
 
@@ -69,8 +103,8 @@ export async function reportsView() {
                     <p>Log de actividades del sistema.</p>
                 </div>
                 <div class="btn-group">
-                    <button class="btn-dl btn-csv">CSV</button>
-                    <button class="btn-dl btn-json">JSON</button>
+                    <button class="btn-dl btn-csv" data-tipo="eventos" data-formato="csv">CSV</button>
+                    <button class="btn-dl btn-json" data-tipo="eventos" data-formato="json">JSON</button>
                 </div>
             </div>
         </div>
@@ -79,19 +113,19 @@ export async function reportsView() {
             <h4 class="text-slate-400 font-bold uppercase text-xs mb-6 tracking-widest">Resumen General</h4>
             <div class="grid-stats">
                 <div class="stat-item">
-                    <span class="stat-value">10</span>
+                    <span class="stat-value" id="stat-registros">0</span>
                     <span class="stat-label">Registros</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-value">60%</span>
+                    <span class="stat-value" id="stat-conversion">0%</span>
                     <span class="stat-label">Conversión</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-value">5</span>
+                    <span class="stat-value" id="stat-municipios">0</span>
                     <span class="stat-label">Municipios</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-value">12h</span>
+                    <span class="stat-value" id="stat-horas">0h</span>
                     <span class="stat-label">Optimizadas</span>
                 </div>
             </div>
@@ -101,15 +135,66 @@ export async function reportsView() {
 
         // 2. LÓGICA (Funcionalidad de botones)
         logic: async function() {
-            // Seleccionamos todos los botones de descarga
-            const botones = document.querySelectorAll('.btn-dl');
+            // Cargar datos desde localStorage
+            const candidatos = JSON.parse(localStorage.getItem('candidatos_riwicalls') || '[]');
+            const llamadas = JSON.parse(localStorage.getItem('llamadas_riwicalls') || '[]');
+            const eventos = JSON.parse(localStorage.getItem('eventos_riwicalls') || '[]');
 
-            botones.forEach(boton => {
+            // Calcular estadísticas para el resumen
+            const totalCandidatos = candidatos.length;
+            const admitidos = candidatos.filter(c => (c.estado_gestion || c.estado || '').toLowerCase().includes('admitido')).length;
+            const conversionRate = totalCandidatos > 0 ? Math.round((admitidos / totalCandidatos) * 100) : 0;
+            const municipios = new Set(candidatos.map(c => c.municipio).filter(m => m));
+            const totalMunicipios = municipios.size;
+
+            let horasOptimizadas = 0;
+            if (llamadas.length > 1) {
+                const fechas = llamadas
+                    .map(l => new Date(l.fechaLlamada))
+                    .filter(f => !isNaN(f.getTime()))
+                    .sort((a, b) => a - b);
+                if (fechas.length > 1) {
+                    const diff = fechas[fechas.length - 1] - fechas[0];
+                    horasOptimizadas = Math.round(diff / (1000 * 60 * 60));
+                }
+            }
+
+            // Actualizar estadísticas en el DOM
+            const statRegistros = document.getElementById('stat-registros');
+            const statConversion = document.getElementById('stat-conversion');
+            const statMunicipios = document.getElementById('stat-municipios');
+            const statHoras = document.getElementById('stat-horas');
+
+            if (statRegistros) statRegistros.textContent = String(totalCandidatos);
+            if (statConversion) statConversion.textContent = conversionRate + '%';
+            if (statMunicipios) statMunicipios.textContent = String(totalMunicipios);
+            if (statHoras) statHoras.textContent = (horasOptimizadas > 0 ? horasOptimizadas : 0) + 'h';
+
+            // Agregar listeners a los botones de descarga
+            document.querySelectorAll('.btn-dl').forEach(boton => {
                 boton.addEventListener('click', (e) => {
-                    const tipo = e.target.closest('.card-descarga').querySelector('h3').innerText;
-                    const formato = e.target.innerText;
-                    console.log(`Descargando reporte: ${tipo} en formato ${formato}`);
-                    // Aquí podrías integrar una librería como XLSX o simplemente un console.log por ahora
+                    const tipo = e.target.getAttribute('data-tipo');
+                    const formato = e.target.getAttribute('data-formato');
+
+                    let dataToDownload = [];
+                    let filename = '';
+
+                    if (tipo === 'candidatos') {
+                        dataToDownload = candidatos;
+                        filename = `candidatos_${new Date().toISOString().split('T')[0]}.${formato}`;
+                    } else if (tipo === 'llamadas') {
+                        dataToDownload = llamadas;
+                        filename = `llamadas_${new Date().toISOString().split('T')[0]}.${formato}`;
+                    } else if (tipo === 'eventos') {
+                        dataToDownload = eventos;
+                        filename = `eventos_${new Date().toISOString().split('T')[0]}.${formato}`;
+                    }
+
+                    if (formato === 'csv') {
+                        downloadCSV(dataToDownload, filename);
+                    } else if (formato === 'json') {
+                        downloadJSON(dataToDownload, filename);
+                    }
                 });
             });
 

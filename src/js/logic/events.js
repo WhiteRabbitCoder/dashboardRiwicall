@@ -1,4 +1,4 @@
-import { syncEventosFromSupabase } from '../services/supabase.js';
+import { syncEventosFromSupabase, createEventoInSupabase, deleteEventoInSupabase, updateEventoInSupabase } from '../services/supabase.js';
 
 export function initEventsView() {
     // Elementos del DOM
@@ -31,7 +31,7 @@ export function initEventsView() {
                 <div class="info-row"><i data-lucide="calendar" class="w-4 h-4"></i><span>${ev.fecha}</span></div>
                 ${ev.candidato ? `<div class="info-row"><i data-lucide="user" class="w-4 h-4"></i><span>Candidato: ${ev.candidato}</span></div>` : ''}
                 <p class="card-desc">${ev.descripcion}</p>
-                <div class="card-actions"><i data-lucide="pencil" class="w-4 h-4 edit-ev" data-index="${index}"></i><i data-lucide="trash-2" class="w-4 h-4 delete-ev" data-index="${index}"></i></div>
+                <div class="card-actions"><i data-lucide="pencil" class="w-4 h-4 edit-ev" data-index="${index}" data-id="${ev.id || ''}"></i><i data-lucide="trash-2" class="w-4 h-4 delete-ev" data-index="${index}" data-id="${ev.id || ''}"></i></div>
             </div>
         `).join('');
         if (window.lucide) lucide.createIcons();
@@ -39,32 +39,108 @@ export function initEventsView() {
 
     // Usar localStorage como respaldo, priorizando sincronización desde Supabase
     let eventosGuardados = JSON.parse(localStorage.getItem('eventos_riwicalls')) || [];
+    let editandoEventoId = null;
 
-    btnAbrirEv?.addEventListener('click', () => { cargarCandidatosDinamicos(); if (modalEv) modalEv.style.display = 'flex'; });
-    btnCerrarEv?.addEventListener('click', () => { if (modalEv) modalEv.style.display = 'none'; });
-
-    btnGuardarEv?.addEventListener('click', () => {
-        const datosEvento = {
-            titulo: document.getElementById('evNombre')?.value,
-            tipo: document.getElementById('evTipo')?.value,
-            estado: document.getElementById('evEstado')?.value,
-            fecha: document.getElementById('evFecha')?.value || new Date().toLocaleString(),
-            candidato: document.getElementById('evCandidato')?.value,
-            descripcion: document.getElementById('evDescripcion')?.value
-        };
-        eventosGuardados.push(datosEvento);
-        localStorage.setItem('eventos_riwicalls', JSON.stringify(eventosGuardados));
-        renderizarCards(eventosGuardados);
+    btnAbrirEv?.addEventListener('click', () => {
+        editandoEventoId = null;
+        cargarCandidatosDinamicos();
+        resetFormularioEvento();
+        if (modalEv) modalEv.style.display = 'flex';
+    });
+    btnCerrarEv?.addEventListener('click', () => {
         if (modalEv) modalEv.style.display = 'none';
+        editandoEventoId = null;
+    });
+
+    const resetFormularioEvento = () => {
+        document.getElementById('evNombre').value = '';
+        document.getElementById('evTipo').value = '';
+        document.getElementById('evEstado').value = '';
+        document.getElementById('evFecha').value = '';
+        document.getElementById('evCandidato').value = 'Ninguno';
+        document.getElementById('evDescripcion').value = '';
+    };
+
+    btnGuardarEv?.addEventListener('click', async () => {
+        try {
+            const datosEvento = {
+                tipo_reunion: document.getElementById('evNombre')?.value,
+                descripcion: document.getElementById('evDescripcion')?.value,
+                estado: document.getElementById('evEstado')?.value || 'Programado',
+                fecha_hora: document.getElementById('evFecha')?.value || new Date().toISOString()
+            };
+
+            // Validar que al menos el título esté completo
+            if (!datosEvento.tipo_reunion || datosEvento.tipo_reunion.trim() === '') {
+                alert('Por favor ingresa un nombre para el evento.');
+                return;
+            }
+
+            if (editandoEventoId) {
+                // Actualizar en Supabase
+                try {
+                    await updateEventoInSupabase(editandoEventoId, datosEvento);
+                } catch (err) {
+                    console.warn('No se pudo actualizar evento en Supabase:', err);
+                }
+
+                // Actualizar en localStorage
+                const idx = eventosGuardados.findIndex(e => e.id === editandoEventoId);
+                if (idx >= 0) {
+                    eventosGuardados[idx] = { ...eventosGuardados[idx], ...datosEvento, id: editandoEventoId };
+                }
+            } else {
+                // Crear en Supabase
+                try {
+                    const eventoCreado = await createEventoInSupabase(datosEvento);
+                    if (eventoCreado && eventoCreado.id) {
+                        eventosGuardados.push({
+                            id: eventoCreado.id,
+                            titulo: datosEvento.tipo_reunion,
+                            ...datosEvento
+                        });
+                    }
+                } catch (err) {
+                    console.warn('No se pudo crear evento en Supabase, guardando localmente:', err);
+                    // Fallback: guardar solo en localStorage con ID temporal
+                    const eventoLocal = {
+                        id: `local_${Date.now()}`,
+                        titulo: datosEvento.tipo_reunion,
+                        tipo: document.getElementById('evTipo')?.value || '',
+                        estado: datosEvento.estado,
+                        fecha: datosEvento.fecha_hora,
+                        candidato: document.getElementById('evCandidato')?.value || 'Ninguno',
+                        descripcion: datosEvento.descripcion
+                    };
+                    eventosGuardados.push(eventoLocal);
+                }
+            }
+
+            localStorage.setItem('eventos_riwicalls', JSON.stringify(eventosGuardados));
+            renderizarCards(eventosGuardados);
+            if (modalEv) modalEv.style.display = 'none';
+            editandoEventoId = null;
+        } catch (error) {
+            alert('Error al guardar el evento: ' + error.message);
+        }
     });
 
     // Delegación de eventos
-    grid?.addEventListener('click', (e) => {
+    grid?.addEventListener('click', async (e) => {
         const deleteBtn = e.target.closest('.delete-ev');
         const editBtn = e.target.closest('.edit-ev');
+
         if (deleteBtn) {
             const index = deleteBtn.getAttribute('data-index');
+            const eventoId = deleteBtn.getAttribute('data-id');
             if (confirm('¿Seguro que quieres eliminar este evento?')) {
+                try {
+                    if (eventoId && !eventoId.startsWith('local_')) {
+                        await deleteEventoInSupabase(eventoId);
+                    }
+                } catch (err) {
+                    console.warn('No se pudo eliminar evento en Supabase:', err);
+                }
                 eventosGuardados.splice(index, 1);
                 localStorage.setItem('eventos_riwicalls', JSON.stringify(eventosGuardados));
                 renderizarCards(eventosGuardados);
@@ -72,10 +148,13 @@ export function initEventsView() {
         }
         if (editBtn) {
             const index = editBtn.getAttribute('data-index');
+            const eventoId = editBtn.getAttribute('data-id');
             const ev = eventosGuardados[index];
-            document.getElementById('evNombre').value = ev.titulo || ev.nombre || '';
+            editandoEventoId = eventoId;
+            document.getElementById('evNombre').value = ev.titulo || ev.nombre || ev.tipo_reunion || '';
             document.getElementById('evTipo').value = ev.tipo || '';
             document.getElementById('evEstado').value = ev.estado || '';
+            document.getElementById('evFecha').value = ev.fecha || ev.fecha_hora || '';
             document.getElementById('evDescripcion').value = ev.descripcion || '';
             cargarCandidatosDinamicos();
             document.getElementById('evCandidato').value = ev.candidato || 'Ninguno';

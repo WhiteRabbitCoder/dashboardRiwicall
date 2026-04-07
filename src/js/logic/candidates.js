@@ -492,7 +492,14 @@ export function initCandidatesView() {
     btnGuardar.addEventListener('click', async () => {
         btnGuardar.disabled = true;
         try {
-            const payloadCompleto = construirPayload();
+            let payloadCompleto;
+            try {
+                payloadCompleto = construirPayload();
+            } catch (validationError) {
+                // Re-lanzar el error de validación para que sea capturado en el catch externo
+                throw validationError;
+            }
+
             // Solo enviamos el payload de candidato a Supabase (las relaciones las maneja el backend)
             const payload = payloadCompleto.candidato;
 
